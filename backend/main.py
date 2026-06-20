@@ -18,8 +18,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+import os
+
 app.include_router(harvester.router)
 app.include_router(forge.router)
+
+outputs_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+if not os.path.exists(outputs_dir):
+    os.makedirs(outputs_dir)
+app.mount("/static", StaticFiles(directory=outputs_dir), name="static")
 
 @app.get("/")
 async def root():

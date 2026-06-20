@@ -16,6 +16,8 @@ export default function CommandCenter() {
   
   const [currentCompany, setCurrentCompany] = useState('');
   const [deepCrawlDone, setDeepCrawlDone] = useState(false);
+  const [deepCrawlUrl, setDeepCrawlUrl] = useState('');
+  const [showIframe, setShowIframe] = useState(false);
 
   useEffect(() => {
     fetch('http://localhost:8080/api/forge/reports')
@@ -67,19 +69,41 @@ export default function CommandCenter() {
       setModalContent('');
       setCurrentCompany(company);
       setDeepCrawlDone(false);
+      setDeepCrawlUrl('');
       setModalTitle(action === 'deep-crawl' ? `${company} - Derin Kazıma` : `${company} - Satış Metni (Soğuk E-posta)`);
       
       try {
         if (action === 'deep-crawl') {
-          const res = await fetch('http://localhost:8080/api/forge/deep-crawl', {
+          const res = await fetch('http://localhost:8080/api/forge/deep-crawl-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url, company_name: company })
           });
-          const data = await res.json();
-          setModalContent(data.message || JSON.stringify(data));
-          if (data.success) {
-            setDeepCrawlDone(true);
+          
+          if (res.body) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              
+              let chunk = decoder.decode(value, { stream: true });
+              if (chunk.includes("REPORT_URL:")) {
+                const parts = chunk.split("REPORT_URL:");
+                const urlPart = parts[1].split("\n")[0];
+                setDeepCrawlUrl(urlPart.trim());
+                chunk = parts[0] + (parts[1].substring(urlPart.length + 1) || "");
+              }
+              if (chunk.includes("DONE")) {
+                setModalContent(prev => prev + chunk.replace("DONE", ""));
+                if (!chunk.includes("HATA")) {
+                  setDeepCrawlDone(true);
+                }
+                break;
+              }
+              setModalContent(prev => prev + chunk);
+            }
           }
         } else if (action === 'generate-pitch') {
           const res = await fetch('http://localhost:8080/api/forge/generate-pitch', {
@@ -209,6 +233,14 @@ export default function CommandCenter() {
             <div className="p-4 border-t border-gray-800 bg-[#0a0a0a] rounded-b-lg flex justify-between items-center">
               <span className="text-xs text-gray-600 font-mono">Güç: Scrapling & LM Studio</span>
               <div className="flex gap-2">
+                {deepCrawlUrl && (
+                  <button 
+                    onClick={() => setShowIframe(true)}
+                    className="px-4 py-2 border rounded text-xs font-semibold transition-colors bg-[#00FFFF]/10 text-[#00FFFF] border-[#00FFFF]/30 hover:bg-[#00FFFF] hover:text-black"
+                  >
+                    Raporu Görüntüle
+                  </button>
+                )}
                 {deepCrawlDone && (
                   <button 
                     onClick={handleAnalyzeCrawl}
@@ -229,6 +261,28 @@ export default function CommandCenter() {
                   Metni Kopyala
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Iframe Modal for Deep Crawl Report */}
+      {showIframe && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+          <div className="w-full h-full max-w-7xl max-h-[95vh] bg-[#050505] border border-gray-700 rounded-lg shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-3 border-b border-gray-800 bg-[#111] rounded-t-lg">
+              <h3 className="text-[#00FFFF] font-bold tracking-wide flex items-center gap-2"><Cpu size={16} /> Deep Crawl Raporu</h3>
+              <div className="flex gap-2">
+                <button onClick={() => window.open(deepCrawlUrl, '_blank')} className="text-gray-400 hover:text-white px-3 py-1 bg-gray-800/50 hover:bg-gray-700 rounded text-xs transition-colors">
+                  Yeni Sekmede Aç
+                </button>
+                <button onClick={() => setShowIframe(false)} className="text-gray-400 hover:text-white px-3 py-1 bg-[#FF007F]/20 hover:bg-[#FF007F] hover:text-white border border-[#FF007F]/30 rounded text-xs transition-colors">
+                  Kapat
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 w-full bg-white rounded-b-lg overflow-hidden">
+              <iframe src={deepCrawlUrl} className="w-full h-full border-0" title="Deep Crawl Report" />
             </div>
           </div>
         </div>

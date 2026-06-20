@@ -12,8 +12,7 @@ env/
 .venv/
 
 # Outputs
-backend/outputs/*.json
-backend/outputs/*.html
+backend/outputs/*
 !backend/outputs/.gitkeep
 
 # OS
