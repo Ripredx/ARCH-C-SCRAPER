@@ -7,10 +7,10 @@
 ## 🚀 Özellikler
 
 - **The Harvester (Veri Toplayıcı):** Google Maps üzerinden anahtar kelime, lokasyon ve limit belirleyerek işletme verilerini çeker (Telefon, Adres, Web Sitesi vb.).
-- **Otomatik Veri Rafinerisi:** Çekilen ham verileri otomatik olarak işler ve analiz edilmesi kolay HTML Grid kartlarına dönüştürür.
-- **Komuta Merkezi (Command Center):** Elde edilen verileri siberpunk tasarımlı karanlık bir arayüzde listeler. İşletmeleri "Web sitesi olanlar (SEO/Rakip Fırsatı)" ve "Web sitesi olmayanlar (Sıcak Satış Fırsatı)" olarak sınıflandırır.
-- **Deep Crawl (Derin Kazı):** Web sitesi olan işletmelerin sitelerine `Scrapling` ile girerek detaylı içerik taraması yapar ve ham veriyi kaydeder.
-- **Yapay Zeka Entegrasyonu:** İşletme verilerini ve Deep Crawl sonuçlarını **LM Studio** (Yerel çalışan modeller) üzerinden geçirerek saniyeler içinde doğrudan müşteriye gönderilebilecek kişiselleştirilmiş satış metinleri (Pitch) üretir.
+- **Veri Rafinerisi (Data Refinery):** Kazılan tüm ham JSON verilerini listeler, sentaks vurgulamalı önizlemesini sunar ve tek tıkla yapay zeka ajanı tarafından "Komuta Merkezi" için analiz raporlarına dönüştürülmesini sağlar.
+- **Komuta Merkezi (Command Center):** Elde edilen verileri siberpunk tasarımlı karanlık bir arayüzde listeler. İşletmeleri "Web sitesi olanlar" ve "Web sitesi olmayanlar" olarak sınıflandırır.
+- **Deep Crawl (Derin Kazı):** İşletmelerin sitelerine `Scrapling` ve `Camoufox` motorlarıyla (SSL hatalarını atlayarak ve Javascript destekli SPA'leri okuyarak) girip derin tarama yapar. Çıkan raporları uygulama içi **Iframe Penceresi (Modal)** üzerinden anında okuyabilirsiniz.
+- **Yapay Zeka Entegrasyonu:** İşletme verilerini ve Deep Crawl sonuçlarını **LM Studio** (Yerel çalışan modeller) üzerinden geçirerek saniyeler içinde kişiselleştirilmiş satış metinleri (Pitch) üretir.
 - **Canlı WebSocket Logları:** Tüm işlemler sırasında arka planda dönen log akışını (terminal benzeri bir arayüzle) anlık olarak ön yüzde gösterir.
 
 ## 🛠️ Kullanılan Teknolojiler
