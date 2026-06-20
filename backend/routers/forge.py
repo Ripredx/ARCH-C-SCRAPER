@@ -29,7 +29,7 @@ class GeneratePitchRequest(BaseModel):
 @router.get("/files")
 async def list_files():
     try:
-        outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
+        outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'harvester_raw')
         if not os.path.exists(outputs_dir):
             return {"files": []}
         
@@ -46,7 +46,7 @@ async def list_files():
 @router.get("/reports")
 async def list_reports():
     try:
-        outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
+        outputs_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'llm_reports')
         if not os.path.exists(outputs_dir):
             return {"reports": []}
         
@@ -63,7 +63,7 @@ async def list_reports():
 @router.get("/files/{filename}")
 async def get_file(filename: str):
     try:
-        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', filename)
+        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'harvester_raw', filename)
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="File not found")
             
@@ -77,7 +77,7 @@ async def get_file(filename: str):
 async def get_report(filename: str):
     try:
         report_filename = f"report_{filename}.html"
-        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', report_filename)
+        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'llm_reports', report_filename)
         if not os.path.exists(filepath):
             return {"exists": False}
             
@@ -90,7 +90,7 @@ async def get_report(filename: str):
 @router.post("/analyze")
 async def analyze_file(request: AnalyzeRequest):
     try:
-        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', request.filename)
+        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'harvester_raw', request.filename)
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="File not found")
             
@@ -106,36 +106,99 @@ async def analyze_file(request: AnalyzeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/all-files")
+async def list_all_files():
+    try:
+        base_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs')
+        
+        harvester_raw_dir = os.path.join(base_dir, 'harvester_raw')
+        llm_reports_dir = os.path.join(base_dir, 'llm_reports')
+        deep_crawl_dir = os.path.join(base_dir, 'deep_crawl')
+        
+        def get_sorted_files(directory, pattern):
+            if not os.path.exists(directory):
+                return []
+            files = glob.glob(os.path.join(directory, pattern))
+            files = [os.path.basename(f) for f in files]
+            files.sort(reverse=True)
+            return files
+            
+        return {
+            "harvester_raw": get_sorted_files(harvester_raw_dir, "*.json"),
+            "llm_reports": get_sorted_files(llm_reports_dir, "*.html"),
+            "deep_crawl_reports": get_sorted_files(deep_crawl_dir, "*.html")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/content/{category}/{filename}")
+async def get_content(category: str, filename: str):
+    valid_categories = ["harvester_raw", "llm_reports", "deep_crawl_reports"]
+    if category not in valid_categories:
+        raise HTTPException(status_code=400, detail="Invalid category")
+        
+    actual_dir = "deep_crawl" if category.startswith("deep_crawl") else category
+        
+    try:
+        filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', actual_dir, filename)
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="File not found")
+            
+        if filepath.endswith('.json'):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return {"type": "json", "content": json.dumps(json.load(f), indent=2, ensure_ascii=False)}
+        else:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return {"type": "html", "content": f.read()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/deep-crawl")
 async def deep_crawl_and_analyze(req: DeepCrawlRequest):
     try:
-        # 1. Scrape with Scrapling
+        from bs4 import BeautifulSoup
+        from scrapling import Fetcher
+        
         fetcher = Fetcher()
         page = fetcher.get(req.url)
-        content_text = page.text
+        body_text = page.text
         
-        # Limit text to ~20000 characters to avoid huge context usage
-        if len(content_text) > 20000:
-            content_text = content_text[:20000]
+        soup = BeautifulSoup(body_text, 'html.parser')
+        
+        title = soup.title.string if soup.title else "Başlık Bulunamadı"
+        meta_desc = ""
+        desc_tag = soup.find('meta', attrs={'name': 'description'})
+        if desc_tag and desc_tag.get('content'):
+            meta_desc = desc_tag['content']
             
-        # 2. Save JSON to outputs/deep_crawl/
+        sections = []
+        for tag in soup.find_all(['h1', 'h2', 'h3', 'p', 'li']):
+            text = tag.get_text(strip=True)
+            if not text or len(text) < 3: continue
+            if tag.name in ['h1', 'h2', 'h3']:
+                sections.append({"type": "heading", "level": tag.name, "text": text})
+            elif tag.name == 'p':
+                sections.append({"type": "paragraph", "text": text})
+            elif tag.name == 'li':
+                sections.append({"type": "list_item", "text": text})
+                
         crawl_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'deep_crawl')
         os.makedirs(crawl_dir, exist_ok=True)
-        
         safe_name = "".join([c if c.isalnum() else "_" for c in req.company_name]).strip("_")
-        json_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.json")
+        html_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.html")
         
-        saved_data = {
-            "company_name": req.company_name,
-            "url": req.url,
-            "content": content_text
-        }
-        
-        with open(json_filepath, 'w', encoding='utf-8') as f:
-            json.dump(saved_data, f, ensure_ascii=False, indent=2)
-            
-        # 3. Generate HTML output for clear visualization
-        safe_content = content_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        sections_html = ""
+        for sec in sections:
+            if sec['type'] == 'heading':
+                size = "text-2xl" if sec['level'] == 'h1' else "text-xl" if sec['level'] == 'h2' else "text-lg"
+                color = "text-[#FF007F]" if sec['level'] == 'h1' else "text-[#00FFFF]" if sec['level'] == 'h2' else "text-white"
+                sections_html += f"<div class='mt-6 mb-3 font-bold {size} {color}'>{sec['text']}</div>\n"
+            elif sec['type'] == 'paragraph':
+                sections_html += f"<p class='text-gray-300 text-sm mb-4 leading-relaxed'>{sec['text']}</p>\n"
+            elif sec['type'] == 'list_item':
+                sections_html += f"<li class='text-gray-400 text-sm ml-4 mb-2 list-disc'>{sec['text']}</li>\n"
+
         html_content = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -146,7 +209,6 @@ async def deep_crawl_and_analyze(req: DeepCrawlRequest):
     <style>
         body {{ background-color: #050505; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
         .glass-panel {{ background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 0, 127, 0.2); }}
-        /* Custom scrollbar */
         ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
         ::-webkit-scrollbar-track {{ background: #111; border-radius: 4px; }}
         ::-webkit-scrollbar-thumb {{ background: #FF007F; border-radius: 4px; }}
@@ -165,20 +227,20 @@ async def deep_crawl_and_analyze(req: DeepCrawlRequest):
                         <span>🔗</span> <a href="{req.url}" target="_blank" class="text-[#00FFFF] hover:underline transition-colors">{req.url}</a>
                     </p>
                 </div>
-                <div class="flex gap-4">
-                    <div class="bg-black/50 rounded-xl p-4 border border-gray-800 text-center min-w-[120px]">
-                        <div class="text-gray-500 text-xs uppercase tracking-wider mb-1">Karakter</div>
-                        <div class="text-2xl font-mono text-[#00FFFF]">{len(content_text)}</div>
-                    </div>
-                </div>
+            </div>
+            
+            <div class="bg-[#111] border border-gray-800 rounded-lg p-5 mb-8">
+                <h3 class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Sayfa Meta Bilgileri</h3>
+                <div class="mb-2"><span class="text-[#00FFFF] font-semibold">Title:</span> <span class="text-gray-300">{title}</span></div>
+                <div><span class="text-[#FF007F] font-semibold">Description:</span> <span class="text-gray-300">{meta_desc or "Belirtilmemiş"}</span></div>
             </div>
 
             <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <span class="text-[#FF007F]">📄</span> Kazınan Ham İçerik
+                <span class="text-[#FF007F]">📄</span> Ayıklanan İçerik
             </h2>
             
             <div class="bg-[#0a0a0a] rounded-xl border border-gray-800 p-6 overflow-y-auto max-h-[600px] shadow-inner">
-                <pre class="text-gray-300 font-mono text-sm whitespace-pre-wrap leading-relaxed">{safe_content}</pre>
+                {sections_html}
             </div>
             
             <div class="mt-6 flex justify-end">
@@ -190,13 +252,13 @@ async def deep_crawl_and_analyze(req: DeepCrawlRequest):
     </div>
 </body>
 </html>"""
-        html_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.html")
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
             
-        return {"success": True, "message": "Site başarıyla kazındı ve veriler HTML/JSON formatında kaydedildi.", "saved_file": json_filepath, "html_file": html_filepath}
+        return {"success": True, "message": "Site başarıyla kazındı ve veriler HTML formatında kaydedildi.", "html_file": html_filepath}
         
     except Exception as e:
+        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -208,8 +270,9 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
     async def generate():
         yield f"> Deep Crawl başlatılıyor: {req.company_name}\n"
         yield f"> Hedef Adres: {req.url}\n"
+        import asyncio
         await asyncio.sleep(0.5)
-        yield "> Tarayıcı motoru başlatılıyor (Scrapling)...\n"
+        yield "> Tarayıcı motoru başlatılıyor (Camoufox)...\n"
         
         try:
             def fetch_url():
@@ -218,56 +281,64 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
                 if sys.platform == 'win32':
                     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
                     
-                import re
+                from bs4 import BeautifulSoup
                 from camoufox.sync_api import Camoufox
                 
-                with Camoufox(headless=True, block_images=True) as browser:
+                with Camoufox(headless=True, block_images=True, i_know_what_im_doing=True) as browser:
                     context = browser.new_context(ignore_https_errors=True)
                     page = context.new_page()
                     page.goto(req.url, referer="https://www.google.com/")
                     page.wait_for_load_state("domcontentloaded")
                     page.wait_for_timeout(2000)
-                    
                     body_text = page.content()
                     
                 if isinstance(body_text, bytes):
                     body_text = body_text.decode('utf-8', errors='replace')
                     
-                # Clean HTML tags
-                text = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', body_text, flags=re.IGNORECASE|re.DOTALL)
-                text = re.sub(r'<[^>]+>', ' ', text)
-                return re.sub(r'\s+', ' ', text).strip()
+                soup = BeautifulSoup(body_text, 'html.parser')
+                title = soup.title.string if soup.title else "Başlık Bulunamadı"
+                meta_desc = ""
+                desc_tag = soup.find('meta', attrs={'name': 'description'})
+                if desc_tag and desc_tag.get('content'):
+                    meta_desc = desc_tag['content']
+                    
+                sections = []
+                for tag in soup.find_all(['h1', 'h2', 'h3', 'p', 'li']):
+                    text = tag.get_text(strip=True)
+                    if not text or len(text) < 3: continue
+                    if tag.name in ['h1', 'h2', 'h3']:
+                        sections.append({"type": "heading", "level": tag.name, "text": text})
+                    elif tag.name == 'p':
+                        sections.append({"type": "paragraph", "text": text})
+                    elif tag.name == 'li':
+                        sections.append({"type": "list_item", "text": text})
+                        
+                return {"title": title, "meta_desc": meta_desc, "sections": sections}
                 
-            yield "> Sayfaya bağlanılıyor ve içerik çekiliyor (Bu işlem birkaç saniye sürebilir)...\n"
-            content_text = await asyncio.to_thread(fetch_url)
+            yield "> Sayfaya bağlanılıyor ve içerik yapısal olarak çekiliyor...\n"
+            extracted_data = await asyncio.to_thread(fetch_url)
             
-            yield f"> İçerik başarıyla çekildi. (Ham Karakter Sayısı: {len(content_text)})\n"
-            
-            if len(content_text) > 20000:
-                yield "> Uyarı: İçerik çok uzun, 20.000 karakter ile sınırlandırılıyor...\n"
-                content_text = content_text[:20000]
-                
-            yield "> JSON dosyası oluşturuluyor...\n"
-            await asyncio.sleep(0.2)
-            crawl_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'deep_crawl')
-            os.makedirs(crawl_dir, exist_ok=True)
-            
-            safe_name = "".join([c if c.isalnum() else "_" for c in req.company_name]).strip("_")
-            json_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.json")
-            
-            saved_data = {
-                "company_name": req.company_name,
-                "url": req.url,
-                "content": content_text
-            }
-            
-            with open(json_filepath, 'w', encoding='utf-8') as f:
-                json.dump(saved_data, f, ensure_ascii=False, indent=2)
-                
+            yield f"> İçerik başarıyla çekildi ve arşivlendi.\n"
             yield "> Görsel rapor için HTML dosyası oluşturuluyor...\n"
             await asyncio.sleep(0.2)
             
-            safe_content = content_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            import os
+            crawl_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'deep_crawl')
+            os.makedirs(crawl_dir, exist_ok=True)
+            safe_name = "".join([c if c.isalnum() else "_" for c in req.company_name]).strip("_")
+            html_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.html")
+            
+            sections_html = ""
+            for sec in extracted_data['sections']:
+                if sec['type'] == 'heading':
+                    size = "text-2xl" if sec['level'] == 'h1' else "text-xl" if sec['level'] == 'h2' else "text-lg"
+                    color = "text-[#FF007F]" if sec['level'] == 'h1' else "text-[#00FFFF]" if sec['level'] == 'h2' else "text-white"
+                    sections_html += f"<div class='mt-6 mb-3 font-bold {size} {color}'>{sec['text']}</div>\n"
+                elif sec['type'] == 'paragraph':
+                    sections_html += f"<p class='text-gray-300 text-sm mb-4 leading-relaxed'>{sec['text']}</p>\n"
+                elif sec['type'] == 'list_item':
+                    sections_html += f"<li class='text-gray-400 text-sm ml-4 mb-2 list-disc'>{sec['text']}</li>\n"
+
             html_content = f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -278,7 +349,6 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
     <style>
         body {{ background-color: #050505; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
         .glass-panel {{ background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 0, 127, 0.2); }}
-        /* Custom scrollbar */
         ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
         ::-webkit-scrollbar-track {{ background: #111; border-radius: 4px; }}
         ::-webkit-scrollbar-thumb {{ background: #FF007F; border-radius: 4px; }}
@@ -297,20 +367,20 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
                         <span>🔗</span> <a href="{req.url}" target="_blank" class="text-[#00FFFF] hover:underline transition-colors">{req.url}</a>
                     </p>
                 </div>
-                <div class="flex gap-4">
-                    <div class="bg-black/50 rounded-xl p-4 border border-gray-800 text-center min-w-[120px]">
-                        <div class="text-gray-500 text-xs uppercase tracking-wider mb-1">Karakter</div>
-                        <div class="text-2xl font-mono text-[#00FFFF]">{len(content_text)}</div>
-                    </div>
-                </div>
+            </div>
+            
+            <div class="bg-[#111] border border-gray-800 rounded-lg p-5 mb-8">
+                <h3 class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Sayfa Meta Bilgileri</h3>
+                <div class="mb-2"><span class="text-[#00FFFF] font-semibold">Title:</span> <span class="text-gray-300">{extracted_data['title']}</span></div>
+                <div><span class="text-[#FF007F] font-semibold">Description:</span> <span class="text-gray-300">{extracted_data['meta_desc'] or "Belirtilmemiş"}</span></div>
             </div>
 
             <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <span class="text-[#FF007F]">📄</span> Kazınan Ham İçerik
+                <span class="text-[#FF007F]">📄</span> Ayıklanan İçerik
             </h2>
             
             <div class="bg-[#0a0a0a] rounded-xl border border-gray-800 p-6 overflow-y-auto max-h-[600px] shadow-inner">
-                <pre class="text-gray-300 font-mono text-sm whitespace-pre-wrap leading-relaxed">{safe_content}</pre>
+                {sections_html}
             </div>
             
             <div class="mt-6 flex justify-end">
@@ -322,7 +392,6 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
     </div>
 </body>
 </html>"""
-            html_filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.html")
             with open(html_filepath, 'w', encoding='utf-8') as f:
                 f.write(html_content)
                 
@@ -331,10 +400,18 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
             yield "DONE"
             
         except Exception as e:
+            import traceback
             traceback.print_exc()
-            yield f"\n> HATA OLUŞTU: {str(e)}\n"
+            error_str = str(e)
+            if "NS_ERROR_UNKNOWN_HOST" in error_str:
+                yield f"\n> HATA OLUŞTU: Web sitesine ulaşılamıyor (NS_ERROR_UNKNOWN_HOST). Site kapalı veya adres yanlış olabilir.\n"
+            elif "Timeout" in error_str:
+                yield f"\n> HATA OLUŞTU: Sayfanın yüklenmesi çok uzun sürdü (Zaman aşımı).\n"
+            else:
+                yield f"\n> HATA OLUŞTU: {error_str}\n"
             yield "DONE"
 
+    from fastapi.responses import StreamingResponse
     return StreamingResponse(generate(), media_type="text/plain")
 
 @router.post("/analyze-crawl")
@@ -342,20 +419,28 @@ async def analyze_crawl(req: AnalyzeCrawlRequest):
     try:
         crawl_dir = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'deep_crawl')
         safe_name = "".join([c if c.isalnum() else "_" for c in req.company_name]).strip("_")
-        filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.json")
+        filepath = os.path.join(crawl_dir, f"{safe_name}_deep_crawl.html")
         
         if not os.path.exists(filepath):
-            raise HTTPException(status_code=404, detail="Bu firma için kazınmış veri bulunamadı. Önce Deep Crawl yapın.")
+            raise HTTPException(status_code=404, detail="Bu firma için HTML raporu bulunamadı. Önce Deep Crawl yapın.")
             
         with open(filepath, 'r', encoding='utf-8') as f:
-            saved_data = json.load(f)
+            html_data = f.read()
             
-        content_text = saved_data.get("content", "")
-        url = saved_data.get("url", "")
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_data, 'html.parser')
+        
+        # Remove head and style tags before extracting text
+        for s in soup(["script", "style", "head", "title", "meta"]):
+            s.extract()
+            
+        content_text = soup.get_text(separator=' ', strip=True)
+        
+        if len(content_text) > 20000:
+            content_text = content_text[:20000]
         
         prompt = f"""Lütfen aşağıdaki firmanın web sitesi içeriklerini analiz et.
 Firma Adı: {req.company_name}
-Web Sitesi URL'si: {url}
 
 Web Sitesi İçeriği:
 {content_text}
@@ -368,7 +453,7 @@ Senden Beklenen:
 Lütfen Markdown formatında, net ve profesyonel bir rapor çıkar."""
 
         response = llm_client.chat.completions.create(
-            model="local-model", # LM studio defaults to loaded model
+            model="local-model",
             messages=[
                 {"role": "system", "content": "Sen profesyonel bir dijital pazarlama ve SEO analistisin."},
                 {"role": "user", "content": prompt}
@@ -380,8 +465,10 @@ Lütfen Markdown formatında, net ve profesyonel bir rapor çıkar."""
         return {"success": True, "report": ai_response}
         
     except Exception as e:
+        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/generate-pitch")
 async def generate_pitch(req: GeneratePitchRequest):

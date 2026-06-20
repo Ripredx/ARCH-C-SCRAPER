@@ -6,8 +6,10 @@
 
 ## 🚀 Özellikler
 
-- **The Harvester (Veri Toplayıcı):** Google Maps üzerinden anahtar kelime, lokasyon ve limit belirleyerek işletme verilerini çeker (Telefon, Adres, Web Sitesi vb.).
-- **Veri Rafinerisi (Data Refinery):** Kazılan tüm ham JSON verilerini listeler, sentaks vurgulamalı önizlemesini sunar ve tek tıkla yapay zeka ajanı tarafından "Komuta Merkezi" için analiz raporlarına dönüştürülmesini sağlar.
+- **The Harvester (Veri Toplayıcı):** Google Maps üzerinden anahtar kelime, lokasyon ve limit belirleyerek işletme verilerini çeker (Telefon, Adres, Web Sitesi vb.). "Kalıcı olarak kapalı" olan işletmeleri doğrudan filtreler.
+- **Akıllı Site & Sınıflandırma:** Toplanan web sitelerine `httpx` üzerinden asenkron ping atılarak sitenin aktif olup olmadığı denetlenir. Sonuçlar 4 ana grupta (Aktif Web Sitesi, Sosyal Medya Kullanıcısı, Ölü Link/Site Yok, Sahipsiz) analiz edilir.
+- **Satış & Fırsat Dedektörü:** İşletmenin Google'da sahiplenilip sahiplenilmediği ("Bu işletmeyi sahiplenin" etiketi) tespit edilir ve rapora "⚠️ Haritada Sahipsiz" rozeti eklenerek ajanslara fırsat yaratılır. Ayrıca bulunan mobil numaralara tek tıkla "📱 WhatsApp'tan Mesaj At" butonu eklenir.
+- **Veri Rafinerisi (Data Refinery):** Kazılan verileri temiz, renk kodlu ve siberpunk tasarımlı, zenginleştirilmiş etkileşimli HTML raporları olarak sunar. HTML raporlarındaki listeler açılır-kapanır (accordion) yapıda sunulur. Tıklanan bağlantılar güvenli biçimde yeni sekmede açılır.
 - **Komuta Merkezi (Command Center):** Elde edilen verileri siberpunk tasarımlı karanlık bir arayüzde listeler. İşletmeleri "Web sitesi olanlar" ve "Web sitesi olmayanlar" olarak sınıflandırır.
 - **Deep Crawl (Derin Kazı):** İşletmelerin sitelerine `Scrapling` ve `Camoufox` motorlarıyla (SSL hatalarını atlayarak ve Javascript destekli SPA'leri okuyarak) girip derin tarama yapar. Çıkan raporları uygulama içi **Iframe Penceresi (Modal)** üzerinden anında okuyabilirsiniz.
 - **Yapay Zeka Entegrasyonu:** İşletme verilerini ve Deep Crawl sonuçlarını **LM Studio** (Yerel çalışan modeller) üzerinden geçirerek saniyeler içinde kişiselleştirilmiş satış metinleri (Pitch) üretir.

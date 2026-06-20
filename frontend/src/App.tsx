@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Terminal, Database, Activity, Code2, PanelLeftClose, PanelLeftOpen, Cpu } from 'lucide-react';
 import CommandCenter from './CommandCenter';
+import DataRefinery from './DataRefinery';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'harvester' | 'command'>('harvester');
+  const [activeTab, setActiveTab] = useState<'harvester' | 'refinery' | 'command'>('harvester');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Harvester Form State
@@ -123,6 +124,19 @@ function App() {
           </button>
 
           <button
+            onClick={() => setActiveTab('refinery')}
+            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 px-4 py-3'} rounded-md transition-colors ${
+              activeTab === 'refinery' 
+                ? 'bg-gray-800/50 text-neon-blue border border-neon-blue' 
+                : 'hover:bg-gray-800/30 hover:text-white border border-transparent'
+            }`}
+            title={isSidebarCollapsed ? 'Veri Rafinerisi' : ''}
+          >
+            <Database size={18} />
+            {!isSidebarCollapsed && <span>Veri Rafinerisi</span>}
+          </button>
+
+          <button
             onClick={() => setActiveTab('command')}
             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 px-4 py-3'} rounded-md transition-colors ${
               activeTab === 'command' 
@@ -153,6 +167,7 @@ function App() {
         <header className="h-16 border-b border-gray-800 flex items-center px-6 justify-between bg-[#0a0a0a]/80 backdrop-blur-sm">
           <h2 className="text-lg font-semibold text-white tracking-widest">
             {activeTab === 'harvester' && '> THE_HARVESTER'}
+            {activeTab === 'refinery' && '> DATA_REFINERY'}
             {activeTab === 'command' && '> COMMAND_CENTER'}
           </h2>
           <div className="flex items-center gap-4 text-sm">
@@ -239,6 +254,10 @@ function App() {
                 </div>
               </div>
            )}
+
+            {activeTab === 'refinery' && (
+              <DataRefinery />
+            )}
 
             {activeTab === 'command' && (
               <CommandCenter />

@@ -8,7 +8,7 @@ class HarvesterService:
     def __init__(self, log_queue: asyncio.Queue):
         self.log_queue = log_queue
         # Ensure outputs directory exists
-        os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'outputs'), exist_ok=True)
+        os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'outputs', 'harvester_raw'), exist_ok=True)
 
     async def log(self, message: str):
         """Helper to send logs to the websocket queue."""
@@ -169,7 +169,36 @@ class HarvesterService:
                                     if loc_fb.count() > 0: menu = loc_fb.get_attribute('href')
                             except Exception: pass
                             
+                            # Check if permanently closed
+                            is_permanently_closed = False
+                            try:
+                                # Check common translations
+                                closed_texts = ["Kalıcı olarak kapalı", "Permanently closed"]
+                                for ct in closed_texts:
+                                    loc_closed = page.locator(f'text="{ct}"').first
+                                    if loc_closed.count() > 0:
+                                        is_permanently_closed = True
+                                        break
+                            except Exception: pass
+                            
+                            if is_permanently_closed:
+                                send_log(f"> 🗑️ Atlandı (Kalıcı Kapalı): {title}")
+                                continue
+
+                            # Check if unclaimed (Sahipsiz)
+                            is_claimed = True
+                            try:
+                                claim_texts = ["Bu işletmeyi sahiplenin", "Claim this business", "Own this business"]
+                                for claim_txt in claim_texts:
+                                    loc_claim = page.locator(f'*:has-text("{claim_txt}")').last
+                                    # Sometimes it matches too much, so we look for elements that exactly have this text
+                                    if loc_claim.count() > 0:
+                                        is_claimed = False
+                                        break
+                            except Exception: pass
+                            
                             extracted_data.append({
+                                "is_claimed": is_claimed,
                                 "title": title,
                                 "url": url,
                                 "address": address,
@@ -242,10 +271,67 @@ class HarvesterService:
             
             await self.log(f"> Success: Parsed {len(results)} results from the page.")
             
+            # --- NEW ASYNC VALIDATION BLOCK ---
+            await self.log(f"> Bulunan web siteleri kontrol ediliyor (Ping atılıyor)...")
+            import httpx
+            import urllib.parse
+            
+            social_media_domains = ['instagram.com', 'facebook.com', 'linktr.ee', 'linkedin.com', 'twitter.com', 'x.com', 'wa.me', 'youtube.com', 'tiktok.com']
+            
+            async def check_site(item):
+                site_url = item.get("website")
+                if not site_url and source != "google_maps":
+                    site_url = item.get("url")
+                    
+                if not site_url or site_url == "#":
+                    item['site_status'] = 'yok'
+                    return
+                    
+                # Check domain for social media
+                try:
+                    parsed_url = urllib.parse.urlparse(site_url)
+                    domain = parsed_url.netloc.lower()
+                    if domain.startswith("www."):
+                        domain = domain[4:]
+                    
+                    is_social = False
+                    for sm in social_media_domains:
+                        if sm in domain:
+                            is_social = True
+                            break
+                            
+                    if is_social:
+                        item['site_status'] = 'sosyal_medya'
+                        return
+                        
+                except Exception:
+                    pass
+                    
+                # Ping the site
+                try:
+                    # using headers to bypass basic bot protection
+                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                    async with httpx.AsyncClient(verify=False, timeout=7.0, follow_redirects=True, headers=headers) as client:
+                        resp = await client.get(site_url)
+                        if resp.status_code < 400 or resp.status_code in [401, 403, 405, 406]: 
+                            item['site_status'] = 'aktif'
+                        else:
+                            item['site_status'] = 'kapali'
+                except Exception as e:
+                    # DNS errors, connection errors, timeouts
+                    item['site_status'] = 'kapali'
+
+            tasks = [check_site(item) for item in results]
+            if tasks:
+                await asyncio.gather(*tasks)
+            await self.log(f"> Site kontrolleri tamamlandı.")
+            # --- END NEW ASYNC VALIDATION BLOCK ---
+            
+            # Save to JSON
             # Save to JSON
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"raw_data_{source}_{timestamp}.json"
-            filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', filename)
+            filepath = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'harvester_raw', filename)
             
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump({"query": query, "source": source, "limit": limit, "results": results}, f, ensure_ascii=False, indent=2)

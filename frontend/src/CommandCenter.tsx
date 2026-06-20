@@ -186,7 +186,7 @@ export default function CommandCenter() {
             
             <div className="flex-1 p-6 overflow-y-auto bg-black text-gray-200">
               {reportHtml ? (
-                <div onClick={handleReportClick} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(reportHtml, { ADD_ATTR: ['data-action', 'data-company', 'data-url'] }) }} />
+                <div onClick={handleReportClick} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(reportHtml, { ADD_ATTR: ['data-action', 'data-company', 'data-url', 'target'] }) }} />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-600 font-mono space-y-4">
                   <div className="text-4xl">🤖</div>
