@@ -19,3 +19,8 @@ backend/outputs/*.html
 # OS
 .DS_Store
 Thumbs.db
+
+# Documentation / Notes
+devlog.md
+gemini-code-*.md
+logo-analizi.md
