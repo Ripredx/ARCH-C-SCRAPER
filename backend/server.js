@@ -189,22 +189,41 @@ app.delete('/api/forge/content/:category/:filename', (req, res) => {
 
 // 3. AI ANALYZE
 app.post('/api/forge/analyze', async (req, res) => {
-  const { filename } = req.body;
+  const { filename, provider, apiKey } = req.body;
   try {
     const content = fs.readFileSync(path.join(dataDir, 'google_maps', filename), 'utf8');
-    const completion = await openai.chat.completions.create({
-      model: "local-model", // LM Studio ignores this anyway
+    
+    let clientOptions = { baseURL: 'http://localhost:1234/v1', apiKey: 'lm-studio' };
+    let modelName = 'local-model';
+
+    if (provider === 'grok') {
+      if (!apiKey) throw new Error('Grok API anahtarı girmediniz!');
+      clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: apiKey };
+      modelName = 'grok-beta'; // veya grok-2-latest
+    } else if (provider === 'openai') {
+      if (!apiKey) throw new Error('OpenAI API anahtarı girmediniz!');
+      clientOptions = { apiKey: apiKey }; // baseURL defaults to OpenAI
+      modelName = 'gpt-4o';
+    }
+
+    const aiClient = new OpenAI(clientOptions);
+
+    const completion = await aiClient.chat.completions.create({
+      model: modelName,
       messages: [
-        { role: "system", content: "Sen bir veri analiz uzmanısın. Aşağıdaki JSON verisini incele ve HTML formatında güzel bir rapor oluştur. Butonlara data-action='deep-crawl' özelliklerini eklemeyi unutma." },
+        { role: "system", content: "Sen bir veri analiz uzmanısın. Aşağıdaki JSON verisini incele ve HTML formatında güzel, gelişmiş bir satış raporu oluştur. İşletmelerin isimlerini, telefonlarını şık bir CSS (koyu tema, neon renkler) tablo veya kart yapısıyla sun. Butonlara data-action='deep-crawl' özelliklerini eklemeyi unutma. Html ve css'in mükemmel olsun." },
         { role: "user", content: `Veri: ${content}` }
       ],
     });
     
-    const htmlReport = completion.choices[0].message.content;
+    // Gelen yanıttan markdown etiketlerini (```html ...) temizle
+    let htmlReport = completion.choices[0].message.content;
+    htmlReport = htmlReport.replace(/^```html\\s*/i, '').replace(/```\\s*$/i, '');
+
     const reportName = `report_${Date.now()}.html`;
     fs.writeFileSync(path.join(dataDir, 'reports', reportName), htmlReport);
     
-    res.json({ log: '> Yapay zeka analizi tamamlandı ve rapor oluşturuldu.' });
+    res.json({ log: `> Yapay zeka analizi (${(provider || 'lmstudio').toUpperCase()}) tamamlandı ve rapor oluşturuldu.` });
   } catch (err) {
     res.status(500).json({ log: `> Yapay zeka hatası: ${err.message}` });
   }

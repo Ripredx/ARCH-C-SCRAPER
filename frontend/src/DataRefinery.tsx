@@ -33,6 +33,9 @@ export default function DataRefinery() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [terminalLog, setTerminalLog] = useState<string>('');
   
+  const [aiProvider, setAiProvider] = useState<string>('grok');
+  const [apiKey, setApiKey] = useState<string>('');
+  
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,13 +96,17 @@ export default function DataRefinery() {
     if (!selectedFile || selectedFile.category !== 'harvester_raw') return;
     setIsAnalyzing(true);
     setActiveTab('terminal');
-    setTerminalLog('> Veriler Python motoruna gönderiliyor...');
+    setTerminalLog('> Veriler yerel Yapay Zeka (LM Studio) motoruna gönderiliyor...');
 
     try {
       const response = await fetch('http://localhost:8000/api/forge/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: selectedFile.filename })
+        body: JSON.stringify({ 
+          filename: selectedFile.filename,
+          provider: aiProvider,
+          apiKey: apiKey
+        })
       });
 
       if (!response.ok) throw new Error("API hatası: " + response.statusText);
@@ -207,8 +214,28 @@ export default function DataRefinery() {
                 </button>
               </div>
               
-              <div className="px-4">
+              <div className="px-4 flex items-center gap-3">
                 {selectedFile?.category === 'harvester_raw' && (
+                  <>
+                    <select 
+                      value={aiProvider}
+                      onChange={(e) => setAiProvider(e.target.value)}
+                      className="bg-[#050505] border border-gray-700 text-gray-300 rounded px-2 py-1.5 text-xs focus:border-neon-blue focus:outline-none"
+                    >
+                      <option value="grok">Grok API (X.AI)</option>
+                      <option value="openai">OpenAI (ChatGPT)</option>
+                      <option value="lmstudio">LM Studio (Yerel)</option>
+                    </select>
+
+                    {aiProvider !== 'lmstudio' && (
+                      <input 
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="API Anahtarı (sk-...)"
+                        className="bg-[#050505] border border-gray-700 text-gray-300 rounded px-2 py-1.5 text-xs focus:border-neon-blue focus:outline-none w-48"
+                      />
+                    )}
                   <button
                     onClick={handleAnalyze}
                     disabled={isAnalyzing}
@@ -220,6 +247,7 @@ export default function DataRefinery() {
                   >
                     <Play size={12} fill="currentColor" /> {isAnalyzing ? 'İŞLENİYOR...' : 'YAPAY ZEKA İLE ANALİZ ET'}
                   </button>
+                  </>
                 )}
               </div>
             </div>
