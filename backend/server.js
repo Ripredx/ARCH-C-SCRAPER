@@ -203,7 +203,7 @@ app.post('/api/forge/analyze', async (req, res) => {
     } else if (provider === 'openai') {
       if (!apiKey) throw new Error('OpenAI API anahtarı girmediniz!');
       clientOptions = { apiKey: apiKey }; // baseURL defaults to OpenAI
-      modelName = 'gpt-4o';
+      modelName = 'gpt-4o-mini';
     }
 
     const aiClient = new OpenAI(clientOptions);
