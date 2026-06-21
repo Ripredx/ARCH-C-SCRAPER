@@ -484,17 +484,29 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
     
     if (isSocialMedia) {
       res.write(`> [Analiz] Sosyal medya hesabı tespit edildi. (Playwright ile derin tarama atlanıyor)\n`);
-      systemPrompt = "Sen bir dijital varlık analiz uzmanısın. Bize verilen firma kendi özel web sitesine sahip değil, sadece sosyal medya kullanıyor. Bu durumu analiz et ve firmanın neden acilen profesyonel bir web sitesine ihtiyacı olduğunu (güvenilirlik, kontrol eksikliği, arama motorlarında bulunamama) anlatan teknik bir ANALİZ RAPORU oluştur. Kesinlikle bir e-posta veya teklif yazma. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver. Kod dışı markdown yazma.";
+      systemPrompt = `Sen bir dijital varlık analiz uzmanısın. Bize verilen firma kendi özel web sitesine sahip değil, sadece sosyal medya kullanıyor. Bu durumu analiz et ve firmanın neden acilen profesyonel bir web sitesine ihtiyacı olduğunu anlatan teknik bir analiz yap. Ayrıca bu firmaya nasıl bir satış teklifi/sunum yapılması gerektiğine dair ideal yaklaşımı belirle. Çıktıyı SADECE AŞAĞIDAKİ JSON FORMATINDA ver. Asla markdown kodu veya başka bir metin ekleme:
+{
+  "score": 20,
+  "summary": "Firma sadece sosyal medya kullanıyor. Profesyonel bir web sitesi yok...",
+  "design_ux_title": "1. Tasarım ve Kullanıcı Deneyimi",
+  "design_ux_text": "Web sitesi bulunmadığı için kullanıcı deneyimi değerlendirilemiyor...",
+  "content_quality_title": "2. İçerik Kalitesi ve Metinler",
+  "content_quality_text": "Sosyal medyadaki içerikler sınırlı ve kurumsal bir imaj çizmekten uzak...",
+  "weaknesses": ["Özel alan adı yok.", "Arama motorlarında bulunabilirlik sıfır.", "Kurumsal e-posta adresi yok."],
+  "tech_trust_title": "İletişim ve Güven Unsurları",
+  "tech_trust_text": "Müşteriler güvenilir bir referans noktası bulamıyor...",
+  "conversion_title": "Dönüşüm Potansiyeli",
+  "conversion_text": "Web sitesi olmadığı için doğrudan satış veya randevu sistemi kurulamıyor...",
+  "conclusion": "Acilen profesyonel bir web sitesine ihtiyaç var...",
+  "pitch_approach": "Firmaya öncelikle 'Instagram tek başına yetmez' vizyonu sunulmalı. Kendi domain'lerine sahip olmanın güvenilirliği artıracağı vurgulanarak, hızlıca dönüşüm getirecek tek sayfalık bir prestij sitesi teklif edilmeli."
+}`;
       cleanedText = "Firma sadece sosyal medya kullanıyor. Özel web sitesi yok.";
     } else {
       res.write(`> [Playwright] Web sitesine sızılıyor...\n`);
       browser = await chromium.launch({ headless: true });
       const page = await browser.newPage();
       
-      // Wait for full load to avoid mid-navigation evaluate errors
       await page.goto(url, { waitUntil: 'load', timeout: 15000 }).catch(() => {});
-      
-      // Short delay for any client-side redirects to settle
       await new Promise(r => setTimeout(r, 2000));
       
       res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
@@ -504,7 +516,6 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
         pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
       } catch (e) {
         if (e.message.includes('Execution context was destroyed')) {
-          // Page navigated again. Wait a bit and retry.
           await new Promise(r => setTimeout(r, 3000));
           pageText = await page.evaluate(() => document.body ? document.body.innerText : "").catch(() => "");
         } else {
@@ -512,13 +523,28 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
         }
       }
       
-      cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000); // 15.000 karaktere kırp
+      cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000);
       
       if (cleanedText.length < 50) {
         throw new Error("Sitede yeterli içerik bulunamadı (Bot koruması veya boş sayfa).");
       }
       
-      systemPrompt = "Sen bir dijital varlık analiz uzmanısın. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı, zayıf metinler vb.) tespit et. Sadece firmanın dijital varlık durumunu özetleyen bir ANALİZ RAPORU yaz. Kesinlikle bir e-posta, teklif veya satış metni YAZMA. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver. Kod dışı markdown yazma.";
+      systemPrompt = `Sen bir dijital varlık analiz uzmanısın. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Sitedeki eksiklikleri tespit et ve bu firmaya hizmet satmak için İDEAL SUNUM VE TEKLİF YAKLAŞIMINI belirle. SADECE AŞAĞIDAKİ JSON FORMATINDA (ve Türkçe) çıktı ver. Başka hiçbir açıklama, markdown veya text yazma:
+{
+  "score": 41,
+  "summary": "Web sitesi çok temel seviyede kalmış. Profesyonel bir işletme için yetersiz dijital varlık gözlemleniyor...",
+  "design_ux_title": "1. Tasarım ve Kullanıcı Deneyimi",
+  "design_ux_text": "Web sitesi 2010'lu yılların tasarım anlayışını yansıtıyor...",
+  "content_quality_title": "2. İçerik Kalitesi ve Metinler",
+  "content_quality_text": "Ana sayfadaki metinler çok kısa, dağınık ve profesyonel değil...",
+  "weaknesses": ["Hizmetler için hiçbir detaylı açıklama yok.", "Hakkımızda sayfası tamamen boş.", "SEO optimizasyonu yapılmamış."],
+  "tech_trust_title": "İletişim ve Güven Unsurları",
+  "tech_trust_text": "İki farklı telefon numarası verilmiş. Bu karışıklığa yol açıyor...",
+  "conversion_title": "Dönüşüm Potansiyeli",
+  "conversion_text": "Ziyaretçiyi ikna edecek güçlü görseller ve çağrı butonları eksik...",
+  "conclusion": "Web sitesi, dijital varlık açısından çok düşük seviyede kalmıştır. Potansiyel müşteriler üzerinde güven verici etki bırakmamaktadır.",
+  "pitch_approach": "Müşteriye sitelerinin çok eski kaldığı ve bu yüzden prestij kaybettikleri hissettirilmeli. Rakiplerin modern sitelerinden örnekler gösterilerek, mobil uyumlu ve randevu/satış odaklı yeni bir tasarım paketi sunulmalı. Fiyat odaklı değil, 'kaybedilen müşteri' odaklı bir satış stratejisi izlenmeli."
+}`;
     }
 
     const aiProvider = provider || 'grok';
@@ -546,15 +572,141 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
         { role: "system", content: systemPrompt },
         { role: "user", content: `Firma Adı: ${company_name}\nWeb Sitesi Verisi:\n${cleanedText}` }
       ],
+      response_format: { type: "json_object" }
     });
 
-    let htmlReport = completion.choices[0].message.content;
-    const match = htmlReport.match(/```html([\s\S]*?)```/i) || htmlReport.match(/```([\s\S]*?)```/i) || htmlReport.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i) || htmlReport.match(/(<html[\s\S]*?<\/html>)/i);
-    if (match && match[1]) {
-      htmlReport = match[1].trim();
+    let aiResult = completion.choices[0].message.content;
+    let parsedData = {};
+    try {
+      const jsonMatch = aiResult.match(/```json\n([\s\S]*?)\n```/) || aiResult.match(/```([\s\S]*?)```/) || [null, aiResult];
+      parsedData = JSON.parse(jsonMatch[1].trim());
+    } catch (e) {
+      console.error("JSON parse hatası:", e);
+      parsedData = {
+        score: 30, summary: "Analiz oluşturulurken JSON ayrıştırma hatası oluştu.",
+        design_ux_title: "1. Tasarım ve Kullanıcı Deneyimi", design_ux_text: "Hata",
+        content_quality_title: "2. İçerik Kalitesi ve Metinler", content_quality_text: "Hata",
+        weaknesses: ["Veri okunamadı."], tech_trust_title: "İletişim", tech_trust_text: "Hata",
+        conversion_title: "Dönüşüm", conversion_text: "Hata", conclusion: "Hata."
+      };
     }
 
-    res.write(`> [Raporlama] Zayıf noktalar analiz edildi, Rapor oluşturuldu.\n`);
+    let weaknessesHtml = parsedData.weaknesses && parsedData.weaknesses.map(w => `<li class="flex items-start gap-2 mb-3"><span class="text-[#D4AF37] mt-1">•</span><span class="text-gray-400 text-sm">${w}</span></li>`).join('') || '';
+
+    const htmlReport = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dijital Varlık Analiz Raporu - ${company_name}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #050505; color: #e5e5e5; font-family: 'Inter', system-ui, sans-serif; }
+    .gold-text { color: #D4AF37; }
+    .card-bg { background-color: #111; border: 1px solid rgba(255,255,255,0.05); }
+    .kritik-badge { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 8px; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body class="p-4 md:p-10 flex justify-center">
+  <div class="max-w-4xl w-full">
+    
+    <!-- HEADER -->
+    <div class="flex flex-col items-center mb-10 text-center">
+      <div class="text-xs font-bold tracking-widest gold-text mb-3 uppercase flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-[#D4AF37]"></span> ANALYSE
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">DİJİTAL VARLIK ANALİZ RAPORU</h1>
+      <p class="text-sm text-gray-500 uppercase tracking-[0.2em]">${company_name}</p>
+    </div>
+
+    <!-- OVERALL SCORE CARD -->
+    <div class="card-bg rounded-2xl p-6 md:p-8 mb-12 flex flex-col md:flex-row items-center gap-8">
+      <div class="flex-shrink-0 relative w-28 h-28 flex items-center justify-center rounded-full border-4 border-gray-800" style="border-bottom-color: #D4AF37; border-left-color: ${parsedData.score > 50 ? '#D4AF37' : 'transparent'}; border-top-color: ${parsedData.score > 80 ? '#D4AF37' : 'transparent'}; transform: rotate(-45deg);">
+        <div style="transform: rotate(45deg);" class="text-center">
+          <div class="text-3xl font-bold gold-text">${parsedData.score || '0'}</div>
+          <div class="text-[9px] text-gray-500 font-bold tracking-wider uppercase mt-1">OVERALL</div>
+        </div>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-white mb-3">${company_name}</h2>
+        <p class="text-gray-400 text-sm leading-relaxed">${parsedData.summary}</p>
+      </div>
+    </div>
+
+    <!-- SECTION 1: KRITIK BULGULAR -->
+    <div class="mb-10">
+      <h3 class="gold-text text-sm font-bold mb-4 flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-[#D4AF37]"></span> Kritik Bulgular</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card-bg rounded-xl p-6 border border-red-900/30">
+          <h4 class="text-white font-bold mb-3 flex items-center">${parsedData.design_ux_title} <span class="kritik-badge">KRİTİK</span></h4>
+          <p class="text-gray-400 text-sm leading-relaxed">${parsedData.design_ux_text}</p>
+        </div>
+        <div class="card-bg rounded-xl p-6 border border-red-900/30">
+          <h4 class="text-white font-bold mb-3 flex items-center">${parsedData.content_quality_title} <span class="kritik-badge">KRİTİK</span></h4>
+          <p class="text-gray-400 text-sm leading-relaxed">${parsedData.content_quality_text}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: IÇERIK VE SEO -->
+    <div class="mb-10">
+      <h3 class="gold-text text-sm font-bold mb-4 flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-[#D4AF37]"></span> İçerik & SEO Durumu</h3>
+      <div class="card-bg rounded-xl p-6">
+        <h4 class="text-white font-bold mb-4 text-sm">Zayıf Yönler</h4>
+        <ul class="flex flex-col">
+          ${weaknessesHtml}
+        </ul>
+      </div>
+    </div>
+
+    <!-- SECTION 3: TEKNIK VE DONUSUM -->
+    <div class="mb-10">
+      <h3 class="gold-text text-sm font-bold mb-4 flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-[#D4AF37]"></span> Teknik & Dönüşüm Optimizasyonu</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card-bg rounded-xl p-6">
+          <h4 class="text-white font-bold mb-3 text-sm">${parsedData.tech_trust_title}</h4>
+          <p class="text-gray-400 text-sm leading-relaxed">${parsedData.tech_trust_text}</p>
+        </div>
+        <div class="card-bg rounded-xl p-6">
+          <h4 class="text-white font-bold mb-3 text-sm">${parsedData.conversion_title}</h4>
+          <p class="text-gray-400 text-sm leading-relaxed">${parsedData.conversion_text}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: GENEL DEGERLENDIRME -->
+    <div class="mb-12">
+      <h3 class="gold-text text-sm font-bold mb-4 flex items-center gap-2"><span class="w-1 h-1 rounded-full bg-[#D4AF37]"></span> Genel Değerlendirme</h3>
+      <div class="card-bg rounded-xl p-6 border-l-2 border-l-[#D4AF37]">
+        <p class="text-gray-300 text-sm leading-relaxed">${(parsedData.conclusion || '').replace('çok düşük seviyede', '<span class="gold-text font-bold">çok düşük seviyede</span>')}</p>
+      </div>
+    </div>
+
+    <!-- SECTION 5: IDEAL SUNUM YAKLASIMI -->
+    <div class="mb-12">
+      <h3 class="gold-text text-sm font-bold mb-4 flex items-center gap-2">
+        <span class="w-1 h-1 rounded-full bg-[#04D9FF]"></span> <span class="text-[#04D9FF]">İdeal Sunum ve Teklif Yaklaşımı</span>
+      </h3>
+      <div class="rounded-xl p-6 border border-[#04D9FF]/20 bg-[#04D9FF]/5 relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-[#04D9FF]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <p class="text-gray-300 text-sm leading-relaxed relative z-10 italic">${parsedData.pitch_approach || 'Bu firma için özel bir sunum yaklaşımı belirlenmedi.'}</p>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600 border-t border-gray-800/50 pt-6">
+      <div>Analiz Tarihi: <span class="gold-text font-bold">${new Date().toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</span></div>
+      <div>Dijital Varlık Skoru: <span class="gold-text font-bold">${parsedData.score}/100</span></div>
+      <div>Rapor Türü: <span class="gold-text font-bold">Teknik + İçerik + UX Analizi</span></div>
+    </div>
+
+  </div>
+</body>
+</html>`;
+
+    res.write(`> [Raporlama] Zayıf noktalar analiz edildi, Rapor şablonu oluşturuldu.\n`);
     
     const safeName = company_name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const fileName = `${safeName}_deep_crawl_${Date.now()}.html`;
