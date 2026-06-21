@@ -369,19 +369,32 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
       throw new Error("Geçerli bir web sitesi adresi yok!");
     }
 
-    res.write(`> [Playwright] Web sitesine sızılıyor...\n`);
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    const isSocialMedia = url.includes('instagram.com') || url.includes('facebook.com') || url.includes('twitter.com') || url.includes('linkedin.com') || url.includes('x.com');
     
-    // 15 saniye zaman aşımı ile domcontentloaded bekle
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    let cleanedText = "";
+    let systemPrompt = "";
     
-    res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
-    const pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
-    const cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000); // 15.000 karaktere kırp
-    
-    if (cleanedText.length < 50) {
-      throw new Error("Sitede yeterli içerik bulunamadı veya bot engellendi.");
+    if (isSocialMedia) {
+      res.write(`> [Analiz] Sosyal medya hesabı tespit edildi. (Playwright ile derin tarama atlanıyor)\n`);
+      systemPrompt = "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Bize verilen firma kendi özel web sitesine sahip değil, sadece sosyal medya kullanıyor. Şunları yap: 1) Sosyal medyaya bağımlı kalmanın dezavantajlarını (hesabın kapanma riski, kurumsallıktan uzak olma vb.) vurucu bir dille anlat. 2) Onlara profesyonel bir web sitesi satacak etkili bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma.";
+      cleanedText = "Firma sadece sosyal medya kullanıyor. Özel web sitesi yok.";
+    } else {
+      res.write(`> [Playwright] Web sitesine sızılıyor...\n`);
+      browser = await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      
+      // 15 saniye zaman aşımı ile domcontentloaded bekle
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+      
+      res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
+      const pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
+      cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000); // 15.000 karaktere kırp
+      
+      if (cleanedText.length < 50) {
+        throw new Error("Sitede yeterli içerik bulunamadı veya bot engellendi.");
+      }
+      
+      systemPrompt = "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: 1) Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı vb.) bul. 2) Onlara web tasarım/pazarlama satacak profesyonel bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma.";
     }
 
     const aiProvider = provider || 'grok';
@@ -406,7 +419,7 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
     const completion = await aiClient.chat.completions.create({
       model: modelName,
       messages: [
-        { role: "system", content: "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: 1) Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı vb.) bul. 2) Onlara web tasarım/pazarlama satacak profesyonel bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma." },
+        { role: "system", content: systemPrompt },
         { role: "user", content: `Firma Adı: ${company_name}\nWeb Sitesi Verisi:\n${cleanedText}` }
       ],
     });
