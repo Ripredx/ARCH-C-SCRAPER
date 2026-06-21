@@ -109,7 +109,9 @@ app.post('/api/harvester/start', async (req, res) => {
           
           const phone = await page.evaluate(() => {
             const btn = document.querySelector('button[data-item-id^="phone:"]');
-            return btn ? btn.innerText.trim().split('\\n').pop() : 'Bulunamadı';
+            if (!btn) return 'Bulunamadı';
+            const parts = btn.innerText.split('\n');
+            return parts[parts.length - 1].trim();
           }).catch(() => 'Bulunamadı');
           
           const website = await page.evaluate(() => {
@@ -119,7 +121,9 @@ app.post('/api/harvester/start', async (req, res) => {
           
           const addressText = await page.evaluate(() => {
             const btn = document.querySelector('button[data-item-id="address"]');
-            return btn ? btn.innerText.trim().split('\\n').pop() : 'Bulunamadı';
+            if (!btn) return location;
+            const parts = btn.innerText.split('\n');
+            return parts[parts.length - 1].trim();
           }).catch(() => location);
 
           results.push({
