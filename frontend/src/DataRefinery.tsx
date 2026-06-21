@@ -222,9 +222,9 @@ export default function DataRefinery() {
                       onChange={(e) => setAiProvider(e.target.value)}
                       className="bg-[#050505] border border-gray-700 text-gray-300 rounded px-2 py-1.5 text-xs focus:border-neon-blue focus:outline-none"
                     >
-                      <option value="grok">Grok API (X.AI)</option>
-                      <option value="openai">OpenAI (ChatGPT)</option>
-                      <option value="lmstudio">LM Studio (Yerel)</option>
+                      <option value="grok">Grok API (grok-2-mini)</option>
+                      <option value="openai">OpenAI (gpt-4o-mini)</option>
+                      <option value="lmstudio">LM Studio (Yerel Seçili Model)</option>
                     </select>
 
                     {aiProvider !== 'lmstudio' && (
