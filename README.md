@@ -35,29 +35,21 @@
 - Python (3.10+)
 - **LM Studio** (Yapay zeka özellikleri için `http://localhost:1234/v1` adresinde çalışıyor olmalıdır)
 
-### 1. Kurulum Komutları
+### 1. Kurulum ve Başlatma (Yeni Yönetici Script)
 
-**Otomatik Kurulum (Önerilen):**
-Proje kök dizininde bulunan **`install.bat`** dosyasına tıklayarak tüm Python ve Node.js bağımlılıklarını tek tıkla otomatik olarak kurabilirsiniz.
+Tüm .bat dosyaları silinmiş ve yerine profesyonel, çapraz platform destekli **`runner.py`** scripti eklenmiştir.
 
-**Manuel Kurulum:**
-Backend gereksinimlerini kurmak için:
+**Tek Komutla Her Şey (Önerilen):**
+Terminalde aşağıdaki komutu çalıştırdığınızda; eğer sistem kurulu değilse sıfırdan her şeyi kurar, kuruluysa direkt sunucuları başlatır:
 ```bash
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-playwright install
+python runner.py auto
 ```
 
-Frontend bağımlılıklarını kurmak için:
-```bash
-cd frontend
-npm install
-```
+**Alternatif Manuel Komutlar:**
+- Sadece kurulum yapmak için: `python runner.py install`
+- Sadece projeyi başlatmak için: `python runner.py start`
+- Açık kalan portları/sunucuları kapatmak için: `python runner.py stop`
 
-### 2. Projeyi Başlatma
-Projenin kök dizininde bulunan **`start_project.bat`** dosyasına tıklayarak projeyi tek tıkla çalıştırabilirsiniz.
 Alternatif olarak manuel çalıştırmak isterseniz:
 
 **Backend'i başlatmak için:**
