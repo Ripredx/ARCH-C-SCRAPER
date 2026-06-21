@@ -145,9 +145,9 @@ export default function DataRefinery() {
         {/* LEFT PANEL: File Explorer */}
         <Panel defaultSize={25} minSize={15} maxSize={40} className="flex flex-col bg-[#050505] border-r border-gray-800">
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {renderFileList('harvester_raw', 'HARVESTER HAM VERİLERİ', <FileJson size={14} />)}
-            {renderFileList('llm_reports', 'LLM SATIŞ RAPORLARI', <FileCode2 size={14} />)}
-            {renderFileList('deep_crawl_reports', 'DEEP CRAWL RAPORLARI', <Globe size={14} />)}
+            {renderFileList('harvester_raw', 'KAZINMIŞ HAM VERİLER', <FileJson size={14} />)}
+            {renderFileList('llm_reports', 'YAPAY ZEKA RAPORLARI', <FileCode2 size={14} />)}
+            {renderFileList('deep_crawl_reports', 'DERİN TARAMA RAPORLARI', <Globe size={14} />)}
           </div>
         </Panel>
 
@@ -174,7 +174,7 @@ export default function DataRefinery() {
                     activeTab === 'terminal' ? 'bg-[#0c0c0c] text-neon-blue border-t-2 border-t-neon-blue' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] border-t-2 border-t-transparent'
                   }`}
                 >
-                  <Cpu size={14} className={isAnalyzing && activeTab !== 'terminal' ? "animate-pulse text-neon-blue" : ""} /> Ajan Terminali
+                  <Cpu size={14} className={isAnalyzing && activeTab !== 'terminal' ? "animate-pulse text-neon-blue" : ""} /> İşlem Logları
                 </button>
               </div>
               
@@ -189,7 +189,7 @@ export default function DataRefinery() {
                         : 'bg-transparent border-neon-blue text-neon-blue hover:bg-neon-blue/10'
                     }`}
                   >
-                    <Play size={12} fill="currentColor" /> {isAnalyzing ? 'İŞLENİYOR...' : 'YAPAY ZEKAYA GÖNDER'}
+                    <Play size={12} fill="currentColor" /> {isAnalyzing ? 'İŞLENİYOR...' : 'YAPAY ZEKA İLE ANALİZ ET'}
                   </button>
                 )}
               </div>

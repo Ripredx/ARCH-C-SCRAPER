@@ -150,7 +150,7 @@ export default function CommandCenter() {
         <Panel defaultSize={20} minSize={10} maxSize={40} className="flex flex-col bg-[#050505] border-r border-gray-800">
           <div className="bg-[#0c0c0c] px-4 py-3 border-b border-gray-800 flex items-center justify-between">
             <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-              <BarChart2 size={14} /> ÜRETİLMİŞ RAPORLAR
+              <BarChart2 size={14} /> SİSTEMDEKİ RAPORLAR
             </span>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -167,7 +167,7 @@ export default function CommandCenter() {
               </button>
             ))}
             {reports.length === 0 && (
-              <div className="p-4 text-xs text-gray-600 text-center">Henüz rapor yok. The Harvester üzerinden arama yaparak rapor üretebilirsiniz.</div>
+              <div className="p-4 text-xs text-gray-600 text-center">Henüz rapor yok. Veri Kazıma menüsünden arama yaparak rapor üretebilirsiniz.</div>
             )}
           </div>
         </Panel>
@@ -181,7 +181,7 @@ export default function CommandCenter() {
           <div className="flex flex-col h-full bg-[#111]">
             <div className="bg-[#0c0c0c] px-6 py-4 border-b border-gray-800 flex items-center gap-2">
               <Cpu size={16} className="text-neon-blue" />
-              <span className="text-sm text-gray-200 font-bold tracking-widest">YAPAY ZEKA AKSİYON PANELİ</span>
+              <span className="text-sm text-gray-200 font-bold tracking-widest">SATIŞ VE RAPORLAMA PANELİ</span>
             </div>
             
             <div className="flex-1 p-6 overflow-y-auto bg-black text-gray-200">
@@ -231,7 +231,7 @@ export default function CommandCenter() {
             
             {/* Footer */}
             <div className="p-4 border-t border-gray-800 bg-[#0a0a0a] rounded-b-lg flex justify-between items-center">
-              <span className="text-xs text-gray-600 font-mono">Güç: Scrapling & LM Studio</span>
+              <span className="text-xs text-gray-600 font-mono">Destek: Playwright & Yapay Zeka</span>
               <div className="flex gap-2">
                 {deepCrawlUrl && (
                   <button 
@@ -271,7 +271,7 @@ export default function CommandCenter() {
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
           <div className="w-full h-full max-w-7xl max-h-[95vh] bg-[#050505] border border-gray-700 rounded-lg shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-3 border-b border-gray-800 bg-[#111] rounded-t-lg">
-              <h3 className="text-[#00FFFF] font-bold tracking-wide flex items-center gap-2"><Cpu size={16} /> Deep Crawl Raporu</h3>
+              <h3 className="text-[#00FFFF] font-bold tracking-wide flex items-center gap-2"><Cpu size={16} /> Derin Tarama Raporu</h3>
               <div className="flex gap-2">
                 <button onClick={() => window.open(deepCrawlUrl, '_blank')} className="text-gray-400 hover:text-white px-3 py-1 bg-gray-800/50 hover:bg-gray-700 rounded text-xs transition-colors">
                   Yeni Sekmede Aç
