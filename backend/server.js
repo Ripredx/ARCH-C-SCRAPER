@@ -507,20 +507,72 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
       const page = await browser.newPage();
       
       await page.goto(url, { waitUntil: 'load', timeout: 15000 }).catch(() => {});
-      await new Promise(r => setTimeout(r, 2000));
       
-      res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
+      // Auto-scroll to trigger lazy loading and CSS animations
+      await page.evaluate(async () => {
+        await new Promise((resolve) => {
+            let totalHeight = 0;
+            const distance = 200;
+            const timer = setInterval(() => {
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+                if(totalHeight >= document.body.scrollHeight || totalHeight > 8000){
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, 100);
+        });
+      }).catch(() => {});
+      
+      res.write(`> [Playwright] Metinler ve alt sayfalar taranıyor...\n`);
       
       let pageText = "";
       try {
-        pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
-      } catch (e) {
-        if (e.message.includes('Execution context was destroyed')) {
-          await new Promise(r => setTimeout(r, 3000));
-          pageText = await page.evaluate(() => document.body ? document.body.innerText : "").catch(() => "");
-        } else {
-          console.error("Evaluate error:", e);
+        pageText = "--- ANA SAYFA ---\n" + (await page.evaluate(() => {
+          document.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
+          // textContent is used to capture text even if CSS makes it invisible (e.g. opacity: 0)
+          return document.body.textContent || document.body.innerText || "";
+        })) + "\n\n";
+        
+        // Find internal subpages (max 3)
+        const subLinks = await page.evaluate(() => {
+          const links = Array.from(document.querySelectorAll('a[href]'));
+          const origin = window.location.origin;
+          const uniqueLinks = new Set();
+          
+          links.forEach(a => {
+            if (a.href && a.href.startsWith(origin) && !a.href.includes('#') && a.href !== origin + '/' && a.href !== window.location.href) {
+              uniqueLinks.add(a.href);
+            }
+          });
+          
+          // Prioritize important pages like 'hakkimizda', 'iletisim', 'hizmetler'
+          const sortedLinks = Array.from(uniqueLinks).sort((a, b) => {
+            const aStr = a.toLowerCase();
+            const bStr = b.toLowerCase();
+            const keywords = ['hakkimizda', 'iletisim', 'contact', 'about', 'hizmet', 'service', 'kurumsal'];
+            let aScore = keywords.some(k => aStr.includes(k)) ? 1 : 0;
+            let bScore = keywords.some(k => bStr.includes(k)) ? 1 : 0;
+            return bScore - aScore;
+          });
+          
+          return sortedLinks.slice(0, 3);
+        });
+
+        for (const link of subLinks) {
+          res.write(`> [Playwright] Alt sayfa taranıyor: ${link}\n`);
+          await page.goto(link, { waitUntil: 'load', timeout: 8000 }).catch(() => {});
+          
+          await page.evaluate(async () => {
+            await new Promise(r => setTimeout(r, 1000));
+            document.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
+          }).catch(() => {});
+          
+          const subText = await page.evaluate(() => document.body ? (document.body.textContent || document.body.innerText || "") : "").catch(() => "");
+          pageText += `--- ALT SAYFA (${link}) ---\n${subText}\n\n`;
         }
+      } catch (e) {
+        console.error("Evaluate error:", e);
       }
       
       cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000);
@@ -528,22 +580,23 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
       if (cleanedText.length < 50) {
         throw new Error("Sitede yeterli içerik bulunamadı (Bot koruması veya boş sayfa).");
       }
-      
-      systemPrompt = `Sen bir dijital varlık analiz uzmanısın. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Sitedeki eksiklikleri tespit et ve bu firmaya hizmet satmak için İDEAL SUNUM VE TEKLİF YAKLAŞIMINI belirle. SADECE AŞAĞIDAKİ JSON FORMATINDA (ve Türkçe) çıktı ver. Başka hiçbir açıklama, markdown veya text yazma:
+      systemPrompt = `Sen bir dijital varlık analiz uzmanısın. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Sitedeki eksiklikleri tespit et ve bu firmaya hizmet satmak için İDEAL SUNUM VE TEKLİF YAKLAŞIMINI belirle. LÜTFEN VERİLEN METİNLERİ DİKKATLE OKU. Eğer metinlerde "Hakkımızda" veya benzeri bilgiler varsa, "sayfa boş" DEME.
+
+SADECE AŞAĞIDAKİ JSON FORMATINDA (ve Türkçe) çıktı ver. Başka hiçbir açıklama, markdown veya text yazma. JSON içindeki metinleri KENDİ ANALİZİNE göre doldur (Aşağıdaki metinler sadece yapı örneğidir, kopyalama):
 {
-  "score": 41,
-  "summary": "Web sitesi çok temel seviyede kalmış. Profesyonel bir işletme için yetersiz dijital varlık gözlemleniyor...",
+  "score": 60,
+  "summary": "[Genel özet buraya yazılacak...]",
   "design_ux_title": "1. Tasarım ve Kullanıcı Deneyimi",
-  "design_ux_text": "Web sitesi 2010'lu yılların tasarım anlayışını yansıtıyor...",
+  "design_ux_text": "[Tasarım analizi buraya yazılacak...]",
   "content_quality_title": "2. İçerik Kalitesi ve Metinler",
-  "content_quality_text": "Ana sayfadaki metinler çok kısa, dağınık ve profesyonel değil...",
-  "weaknesses": ["Hizmetler için hiçbir detaylı açıklama yok.", "Hakkımızda sayfası tamamen boş.", "SEO optimizasyonu yapılmamış."],
+  "content_quality_text": "[İçerik analizi buraya yazılacak...]",
+  "weaknesses": ["[Sitedeki en kritik 1. eksiklik]", "[Sitedeki en kritik 2. eksiklik]", "[Sitedeki en kritik 3. eksiklik]"],
   "tech_trust_title": "İletişim ve Güven Unsurları",
-  "tech_trust_text": "İki farklı telefon numarası verilmiş. Bu karışıklığa yol açıyor...",
+  "tech_trust_text": "[Güven unsuru analizi buraya yazılacak...]",
   "conversion_title": "Dönüşüm Potansiyeli",
-  "conversion_text": "Ziyaretçiyi ikna edecek güçlü görseller ve çağrı butonları eksik...",
-  "conclusion": "Web sitesi, dijital varlık açısından çok düşük seviyede kalmıştır. Potansiyel müşteriler üzerinde güven verici etki bırakmamaktadır.",
-  "pitch_approach": "Müşteriye sitelerinin çok eski kaldığı ve bu yüzden prestij kaybettikleri hissettirilmeli. Rakiplerin modern sitelerinden örnekler gösterilerek, mobil uyumlu ve randevu/satış odaklı yeni bir tasarım paketi sunulmalı. Fiyat odaklı değil, 'kaybedilen müşteri' odaklı bir satış stratejisi izlenmeli."
+  "conversion_text": "[Dönüşüm analizi buraya yazılacak...]",
+  "conclusion": "[Genel sonuç cümlesi buraya yazılacak...]",
+  "pitch_approach": "[Bu firmaya nasıl bir satış stratejisi izlenmeli? Hangi hizmetler sunulmalı?]"
 }`;
     }
 
