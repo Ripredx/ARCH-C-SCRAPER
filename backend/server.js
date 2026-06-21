@@ -199,7 +199,7 @@ app.post('/api/forge/analyze', async (req, res) => {
     if (provider === 'grok') {
       if (!apiKey) throw new Error('Grok API anahtarı girmediniz!');
       clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: apiKey };
-      modelName = 'grok-beta'; // veya grok-2-latest
+      modelName = 'grok-2-mini';
     } else if (provider === 'openai') {
       if (!apiKey) throw new Error('OpenAI API anahtarı girmediniz!');
       clientOptions = { apiKey: apiKey }; // baseURL defaults to OpenAI
