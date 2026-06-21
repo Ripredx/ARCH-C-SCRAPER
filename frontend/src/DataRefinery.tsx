@@ -146,6 +146,21 @@ export default function DataRefinery() {
     }
   };
 
+  const handleDeleteAllFiles = async () => {
+    if (!window.confirm('Tüm raporları ve ham verileri (sistemi sıfırlamak) silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+
+    try {
+      const res = await fetch('http://localhost:8000/api/forge/delete-all', { method: 'DELETE' });
+      if (res.ok) {
+        setSelectedFile(null);
+        setFileContent('');
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error('Silme hatası:', err);
+    }
+  };
+
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -232,7 +247,7 @@ export default function DataRefinery() {
                     }`}
                   title={f}
                 >
-                  <span className="truncate pr-2">{f.replace('raw_data_google_maps_', '').replace('_deep_crawl', '').replace('report_raw_data_google_maps_', '')}</span>
+                  <span className="truncate pr-2">{f.replace('raw_data_google_maps_', '').replace('_deep_crawl', '').replace('report_raw_data_google_maps_', '').replace('report_', '').replace(/_\d{13}/, '').replace('.json', '').replace('.html', '').replace(/_/g, ' ').toUpperCase()}</span>
                   <div
                     onClick={(e) => handleDeleteFile(e, categoryKey, f)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
@@ -261,6 +276,14 @@ export default function DataRefinery() {
             {renderFileList('harvester_raw', 'KAZINMIŞ HAM VERİLER', <FileJson size={14} />)}
             {renderFileList('llm_reports', 'GENEL ANALİZ RAPORLARI', <FileCode2 size={14} />)}
             {renderFileList('deep_crawl_reports', 'DERİN TARAMA RAPORLARI', <Globe size={14} />)}
+          </div>
+          <div className="p-3 border-t border-gray-800 bg-[#0c0c0c]">
+            <button
+              onClick={handleDeleteAllFiles}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold bg-red-500/10 text-red-500 border border-red-500/30 rounded hover:bg-red-500 hover:text-white transition-all"
+            >
+              <Trash2 size={14} /> TÜM VERİLERİ TEMİZLE
+            </button>
           </div>
         </Panel>
 

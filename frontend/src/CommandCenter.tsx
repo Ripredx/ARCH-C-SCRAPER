@@ -174,7 +174,7 @@ export default function CommandCenter() {
                 title={f}
                 onClick={() => handleSelectReport(f)}
               >
-                <span className="truncate pr-2">{f.replace('report_', '').replace('.html', '')}</span>
+                <span className="truncate pr-2">{f.replace('report_', '').replace(/_\d{13}/, '').replace('.html', '').replace(/_/g, ' ').toUpperCase()}</span>
                 <button 
                   onClick={(e) => handleDeleteReport(e, f)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"

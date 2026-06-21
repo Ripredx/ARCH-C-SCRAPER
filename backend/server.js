@@ -140,7 +140,10 @@ app.post('/api/harvester/start', async (req, res) => {
       }
     }
     
-    const filename = `harvester_${Date.now()}.json`;
+    const safeKeywords = (keywords || 'genel').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const safeLocation = (location || 'veri').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const filename = `${safeKeywords}_${safeLocation}_${Date.now()}.json`;
+    
     fs.writeFileSync(path.join(dataDir, 'google_maps', filename), JSON.stringify(results, null, 2));
     
     sendLog(`> Başarılı! ${results.length} işletme bulundu.`);
@@ -185,6 +188,28 @@ app.delete('/api/forge/content/:category/:filename', (req, res) => {
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'File not found' });
+  }
+});
+
+// Delete all files
+app.delete('/api/forge/delete-all', (req, res) => {
+  const dirs = ['google_maps', 'deep_crawl', 'reports'];
+  try {
+    let deletedCount = 0;
+    for (const d of dirs) {
+      const p = path.join(dataDir, d);
+      if (fs.existsSync(p)) {
+        for (const file of fs.readdirSync(p)) {
+          if (file !== '.gitkeep') {
+            fs.unlinkSync(path.join(p, file));
+            deletedCount++;
+          }
+        }
+      }
+    }
+    res.json({ success: true, count: deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -252,7 +277,10 @@ app.post('/api/forge/analyze', async (req, res) => {
       }
     }
     const averageRating = ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 'Yok';
-    const reportTitle = filename.replace('.json', '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    
+    // Remove .json, remove timestamps (_1234567890123), replace underscores with spaces, capitalize words
+    const cleanName = filename.replace('.json', '').replace(/_\d{13}$/, '').replace(/[-_]/g, ' ');
+    const reportTitle = cleanName.replace(/\b\w/g, c => c.toUpperCase()) || 'Genel Analiz';
 
     // Build Table Rows
     let tableRowsHtml = '';
@@ -394,7 +422,8 @@ app.post('/api/forge/analyze', async (req, res) => {
 </html>
 `;
 
-    const reportName = `report_${Date.now()}.html`;
+    const reportFileName = cleanName.replace(/ /g, '_');
+    const reportName = `${reportFileName}_raporu_${Date.now()}.html`;
     fs.writeFileSync(path.join(dataDir, 'reports', reportName), htmlReport);
     
     res.json({ log: `> Yapay zeka analizi (${(provider || 'lmstudio').toUpperCase()}) tamamlandı ve rapor şablonu oluşturuldu.` });
