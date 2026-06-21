@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileJson, Cpu, Play, ChevronDown, ChevronRight, FileCode2, Globe, Trash2 } from 'lucide-react';
+import { FileJson, Cpu, Play, ChevronDown, ChevronRight, FileCode2, Globe, Trash2, Save } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
@@ -35,6 +35,7 @@ export default function DataRefinery() {
   
   const [aiProvider, setAiProvider] = useState<string>('grok');
   const [apiKey, setApiKey] = useState<string>('');
+  const [savedKeys, setSavedKeys] = useState<{grok: boolean, openai: boolean}>({ grok: false, openai: false });
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +52,40 @@ export default function DataRefinery() {
 
   useEffect(() => {
     fetchFiles();
+    fetch('http://localhost:8000/api/forge/keys')
+      .then(res => res.json())
+      .then(data => setSavedKeys(data))
+      .catch(console.error);
   }, []);
+
+  const handleSaveKey = async () => {
+    if (!apiKey) return;
+    try {
+      const res = await fetch('http://localhost:8000/api/forge/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: aiProvider, key: apiKey })
+      });
+      if (res.ok) {
+        setSavedKeys(prev => ({ ...prev, [aiProvider]: true }));
+        setApiKey('');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteKey = async () => {
+    if (!window.confirm('Kayıtlı API anahtarını kalıcı olarak silmek istediğinize emin misiniz?')) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/forge/keys/${aiProvider}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSavedKeys(prev => ({ ...prev, [aiProvider]: false }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleDeleteFile = async (e: React.MouseEvent, category: string, filename: string) => {
     e.stopPropagation();
@@ -228,13 +262,25 @@ export default function DataRefinery() {
                     </select>
 
                     {aiProvider !== 'lmstudio' && (
-                      <input 
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="API Anahtarı (sk-...)"
-                        className="bg-[#050505] border border-gray-700 text-gray-300 rounded px-2 py-1.5 text-xs focus:border-neon-blue focus:outline-none w-48"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder={savedKeys[aiProvider as keyof typeof savedKeys] ? "Sistemde Kayıtlı (Gizli)" : "API Anahtarı (sk-...)"}
+                          className={`bg-[#050505] border text-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none w-56 ${
+                            savedKeys[aiProvider as keyof typeof savedKeys] ? 'border-green-800/50 focus:border-green-500' : 'border-gray-700 focus:border-neon-blue'
+                          }`}
+                        />
+                        <button onClick={handleSaveKey} title="Anahtarı Kaydet" className="text-gray-500 hover:text-green-500 transition-colors">
+                          <Save size={14} />
+                        </button>
+                        {savedKeys[aiProvider as keyof typeof savedKeys] && (
+                          <button onClick={handleDeleteKey} title="Kayıtlı Anahtarı Sil" className="text-gray-500 hover:text-red-500 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   <button
                     onClick={handleAnalyze}

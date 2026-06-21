@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const expressWs = require('express-ws');
@@ -197,12 +198,14 @@ app.post('/api/forge/analyze', async (req, res) => {
     let modelName = 'local-model';
 
     if (provider === 'grok') {
-      if (!apiKey) throw new Error('Grok API anahtarı girmediniz!');
-      clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: apiKey };
+      const finalKey = apiKey || process.env.GROK_API_KEY;
+      if (!finalKey) throw new Error('Grok API anahtarı bulunamadı! Lütfen arayüzden girin veya kaydedin.');
+      clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: finalKey };
       modelName = 'grok-2-mini';
     } else if (provider === 'openai') {
-      if (!apiKey) throw new Error('OpenAI API anahtarı girmediniz!');
-      clientOptions = { apiKey: apiKey }; // baseURL defaults to OpenAI
+      const finalKey = apiKey || process.env.OPENAI_API_KEY;
+      if (!finalKey) throw new Error('OpenAI API anahtarı bulunamadı! Lütfen arayüzden girin veya kaydedin.');
+      clientOptions = { apiKey: finalKey }; 
       modelName = 'gpt-4o-mini';
     }
 
@@ -282,4 +285,50 @@ app.post('/api/forge/deep-crawl-stream', (req, res) => {
 
 app.listen(8000, () => {
   console.log('Node.js Backend (Express) running on port 8000');
+});
+
+// -- ENV MANAGEMENT --
+const envPath = path.join(__dirname, '.env');
+
+app.get('/api/forge/keys', (req, res) => {
+  res.json({
+    grok: !!process.env.GROK_API_KEY,
+    openai: !!process.env.OPENAI_API_KEY
+  });
+});
+
+app.post('/api/forge/keys', (req, res) => {
+  const { provider, key } = req.body;
+  if (!key) return res.status(400).json({ error: 'Anahtar boş olamaz' });
+  
+  const envVar = provider === 'grok' ? 'GROK_API_KEY' : 'OPENAI_API_KEY';
+  process.env[envVar] = key;
+  
+  let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+  const regex = new RegExp(`^${envVar}=.*$`, 'm');
+  
+  if (regex.test(envContent)) {
+    envContent = envContent.replace(regex, `${envVar}=${key}`);
+  } else {
+    envContent += `\\n${envVar}=${key}`;
+  }
+  
+  fs.writeFileSync(envPath, envContent.trim() + '\\n');
+  res.json({ success: true });
+});
+
+app.delete('/api/forge/keys/:provider', (req, res) => {
+  const { provider } = req.params;
+  const envVar = provider === 'grok' ? 'GROK_API_KEY' : 'OPENAI_API_KEY';
+  
+  delete process.env[envVar];
+  
+  if (fs.existsSync(envPath)) {
+    let envContent = fs.readFileSync(envPath, 'utf8');
+    const regex = new RegExp(`^${envVar}=.*$\\n?`, 'gm');
+    envContent = envContent.replace(regex, '');
+    fs.writeFileSync(envPath, envContent.trim() + '\\n');
+  }
+  
+  res.json({ success: true });
 });
