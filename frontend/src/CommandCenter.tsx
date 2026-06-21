@@ -268,7 +268,7 @@ export default function CommandCenter() {
                     onClick={handleAnalyzeCrawl}
                     className="px-4 py-2 border rounded text-xs font-semibold transition-colors bg-[#FF007F]/10 text-[#FF007F] border-[#FF007F]/30 hover:bg-[#FF007F] hover:text-white"
                   >
-                    Veriyi AI ile Yorumla
+                    Satış Teklifi (Pitch) Oluştur
                   </button>
                 )}
                 <button 

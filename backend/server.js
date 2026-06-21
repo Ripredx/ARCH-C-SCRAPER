@@ -376,7 +376,7 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
     
     if (isSocialMedia) {
       res.write(`> [Analiz] Sosyal medya hesabı tespit edildi. (Playwright ile derin tarama atlanıyor)\n`);
-      systemPrompt = "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Bize verilen firma kendi özel web sitesine sahip değil, sadece sosyal medya kullanıyor. Şunları yap: 1) Sosyal medyaya bağımlı kalmanın dezavantajlarını (hesabın kapanma riski, kurumsallıktan uzak olma vb.) vurucu bir dille anlat. 2) Onlara profesyonel bir web sitesi satacak etkili bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma.";
+      systemPrompt = "Sen bir dijital varlık analiz uzmanısın. Bize verilen firma kendi özel web sitesine sahip değil, sadece sosyal medya kullanıyor. Bu durumu analiz et ve firmanın neden acilen profesyonel bir web sitesine ihtiyacı olduğunu (güvenilirlik, kontrol eksikliği, arama motorlarında bulunamama) anlatan teknik bir ANALİZ RAPORU oluştur. Kesinlikle bir e-posta veya teklif yazma. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver. Kod dışı markdown yazma.";
       cleanedText = "Firma sadece sosyal medya kullanıyor. Özel web sitesi yok.";
     } else {
       res.write(`> [Playwright] Web sitesine sızılıyor...\n`);
@@ -410,7 +410,7 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
         throw new Error("Sitede yeterli içerik bulunamadı (Bot koruması veya boş sayfa).");
       }
       
-      systemPrompt = "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: 1) Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı vb.) bul. 2) Onlara web tasarım/pazarlama satacak profesyonel bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma.";
+      systemPrompt = "Sen bir dijital varlık analiz uzmanısın. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı, zayıf metinler vb.) tespit et. Sadece firmanın dijital varlık durumunu özetleyen bir ANALİZ RAPORU yaz. Kesinlikle bir e-posta, teklif veya satış metni YAZMA. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver. Kod dışı markdown yazma.";
     }
 
     const aiProvider = provider || 'grok';
@@ -461,6 +461,62 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
   } finally {
     if (browser) await browser.close();
     res.end();
+  }
+});
+
+app.post('/api/forge/analyze-crawl', async (req, res) => {
+  const { company_name, provider } = req.body;
+  try {
+    const safeName = company_name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const deepCrawlDir = path.join(dataDir, 'deep_crawl');
+    
+    if (!fs.existsSync(deepCrawlDir)) {
+      throw new Error("Henüz hiçbir derin tarama yapılmamış.");
+    }
+    
+    // Find the latest deep crawl report for this company
+    const files = fs.readdirSync(deepCrawlDir)
+      .filter(f => f.startsWith(`${safeName}_deep_crawl_`))
+      .sort((a, b) => fs.statSync(path.join(deepCrawlDir, b)).mtime.getTime() - fs.statSync(path.join(deepCrawlDir, a)).mtime.getTime());
+      
+    if (files.length === 0) {
+      throw new Error("Bu firma için bir derin tarama raporu bulunamadı. Önce Derin Tarama yapın.");
+    }
+    
+    const latestReportPath = path.join(deepCrawlDir, files[0]);
+    const reportContent = fs.readFileSync(latestReportPath, 'utf8');
+    
+    // Temiz metin çıkartma (HTML etiketlerinden arındırma - AI'ın daha az token harcaması için)
+    const textContent = reportContent.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().substring(0, 10000);
+
+    const aiProvider = provider || 'grok';
+    let clientOptions = { baseURL: 'http://localhost:1234/v1', apiKey: 'lm-studio' };
+    let modelName = 'local-model';
+
+    if (aiProvider === 'grok') {
+      const finalKey = process.env.GROK_API_KEY;
+      if (!finalKey) throw new Error('Grok API anahtarı sunucuda kayıtlı değil!');
+      clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: finalKey };
+      modelName = 'grok-4.20-0309-non-reasoning';
+    } else if (aiProvider === 'openai') {
+      const finalKey = process.env.OPENAI_API_KEY;
+      if (!finalKey) throw new Error('OpenAI API anahtarı sunucuda kayıtlı değil!');
+      clientOptions = { apiKey: finalKey }; 
+      modelName = 'gpt-4o-mini';
+    }
+
+    const aiClient = new OpenAI(clientOptions);
+    const completion = await aiClient.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: "system", content: "Sen acımasız, ikna edici ve profesyonel bir B2B satış uzmanısın. Sana bir firmanın dijital varlık analizini vereceğim. Bu analizdeki eksiklikleri (zayıf web sitesi, iletişim eksiği veya sadece sosyal medya kullanımı) kullanarak, firma sahibine profesyonel web tasarım ve dijital pazarlama hizmetleri satacak çok etkili, kısa ve vurucu bir SOĞUK E-POSTA (Pitch) yaz. E-postanın konu başlığını da belirle. Sadece düz metin veya markdown formatında yaz, HTML kullanma." },
+        { role: "user", content: `Firma Adı: ${company_name}\n\nDijital Varlık Analizi Raporu:\n${textContent}` }
+      ],
+    });
+
+    res.json({ report: completion.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
