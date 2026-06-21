@@ -20,7 +20,7 @@ export default function CommandCenter() {
   const [showIframe, setShowIframe] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/forge/reports')
+    fetch('http://localhost:8000/api/forge/reports')
       .then(res => res.json())
       .then(data => setReports(data.reports))
       .catch(err => console.error("Could not fetch reports:", err));
@@ -31,7 +31,7 @@ export default function CommandCenter() {
     setReportHtml('');
     
     try {
-      const res = await fetch(`http://localhost:8080/api/forge/report/${filename.replace('report_', '').replace('.html', '')}`);
+      const res = await fetch(`http://localhost:8000/api/forge/report/${filename.replace('report_', '').replace('.html', '')}`);
       const data = await res.json();
       if (data.exists) {
         setReportHtml(data.html);
@@ -74,7 +74,7 @@ export default function CommandCenter() {
       
       try {
         if (action === 'deep-crawl') {
-          const res = await fetch('http://localhost:8080/api/forge/deep-crawl-stream', {
+          const res = await fetch('http://localhost:8000/api/forge/deep-crawl-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url, company_name: company })
@@ -106,7 +106,7 @@ export default function CommandCenter() {
             }
           }
         } else if (action === 'generate-pitch') {
-          const res = await fetch('http://localhost:8080/api/forge/generate-pitch', {
+          const res = await fetch('http://localhost:8000/api/forge/generate-pitch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ company_name: company, industry: 'Genel' })
@@ -129,7 +129,7 @@ export default function CommandCenter() {
     setDeepCrawlDone(false);
 
     try {
-      const res = await fetch('http://localhost:8080/api/forge/analyze-crawl', {
+      const res = await fetch('http://localhost:8000/api/forge/analyze-crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_name: currentCompany })

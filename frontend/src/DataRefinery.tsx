@@ -40,7 +40,7 @@ export default function DataRefinery() {
   }, [terminalLog]);
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/forge/all-files')
+    fetch('http://localhost:8000/api/forge/all-files')
       .then(res => res.json())
       .then(data => setCategories(data))
       .catch(err => console.error("Could not fetch files:", err));
@@ -57,7 +57,7 @@ export default function DataRefinery() {
     
     if (!isHtml) {
       try {
-        const res = await fetch(`http://localhost:8080/api/forge/content/${category}/${filename}`);
+        const res = await fetch(`http://localhost:8000/api/forge/content/${category}/${filename}`);
         const data = await res.json();
         setFileContent(data.content);
       } catch (err) {
@@ -74,7 +74,7 @@ export default function DataRefinery() {
     setTerminalLog('> Veriler Python motoruna gönderiliyor...');
 
     try {
-      const response = await fetch('http://localhost:8080/api/forge/analyze', {
+      const response = await fetch('http://localhost:8000/api/forge/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: selectedFile.filename })
@@ -86,7 +86,7 @@ export default function DataRefinery() {
       setTerminalLog(data.log + '\n\n> İşlem tamamlandı. Sonuçları görmek için "Komuta Merkezi" sekmesine geçebilirsiniz.');
       
       // Refresh files list
-      const resFiles = await fetch('http://localhost:8080/api/forge/all-files');
+      const resFiles = await fetch('http://localhost:8000/api/forge/all-files');
       const dataFiles = await resFiles.json();
       setCategories(dataFiles);
       
@@ -211,7 +211,7 @@ export default function DataRefinery() {
                       </div>
                     ) : (
                       <iframe 
-                        src={`http://localhost:8080/static/${selectedFile.category.startsWith('deep_crawl') ? 'deep_crawl' : selectedFile.category}/${selectedFile.filename}`}
+                        src={`http://localhost:8000/static/${selectedFile.category.startsWith('deep_crawl') ? 'deep_crawl' : selectedFile.category}/${selectedFile.filename}`}
                         className="w-full h-full border-0 bg-white"
                         title="HTML Report"
                       />

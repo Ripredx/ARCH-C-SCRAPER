@@ -55,7 +55,7 @@ Alternatif olarak manuel çalıştırmak isterseniz:
 **Backend'i başlatmak için:**
 ```bash
 cd backend
-uvicorn main:app --reload --port 8080
+uvicorn main:app --reload --port 8000
 ```
 
 **Frontend'i başlatmak için:**

@@ -396,7 +396,7 @@ async def deep_crawl_stream(req: DeepCrawlRequest):
                 f.write(html_content)
                 
             yield f"> İşlem Tamamlandı. Veriler kaydedildi.\n"
-            yield f"REPORT_URL:http://localhost:8080/static/deep_crawl/{safe_name}_deep_crawl.html\n"
+            yield f"REPORT_URL:http://localhost:8000/static/deep_crawl/{safe_name}_deep_crawl.html\n"
             yield "DONE"
             
         except Exception as e:

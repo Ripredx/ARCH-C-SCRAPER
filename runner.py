@@ -26,18 +26,18 @@ def start():
     
     # Windows'ta yeni sekmede ac, Linux/Mac'te arka planda (nohup)
     if platform.system() == "Windows":
-        run_command(f"{activate_cmd}uvicorn main:app --reload --port 8080", cwd="backend", new_console=True)
+        run_command(f"{activate_cmd}uvicorn main:app --reload --port 8000", cwd="backend", new_console=True)
         run_command("npm run dev", cwd="frontend", new_console=True)
     else:
-        subprocess.Popen(f"{activate_cmd}uvicorn main:app --reload --port 8080", cwd="backend", shell=True)
+        subprocess.Popen(f"{activate_cmd}uvicorn main:app --reload --port 8000", cwd="backend", shell=True)
         subprocess.Popen("npm run dev", cwd="frontend", shell=True)
         
-    print("[+] Frontend (5173) ve Backend (8080) calisiyor.")
+    print("[+] Frontend (5173) ve Backend (8000) calisiyor.")
 
 def stop():
-    print("[*] Acik olan portlar (5173, 8080) temizleniyor...")
+    print("[*] Acik olan portlar (5173, 8000) temizleniyor...")
     if platform.system() == "Windows":
-        for port in [5173, 8080]:
+        for port in [5173, 8000]:
             try:
                 out = subprocess.check_output(f'netstat -aon | find ":{port}" | find "LISTENING"', shell=True).decode()
                 for line in out.strip().split('\n'):
@@ -47,7 +47,7 @@ def stop():
                             subprocess.run(f"taskkill /F /PID {pid}", shell=True, stderr=subprocess.DEVNULL)
             except: pass
     else:
-        for port in [5173, 8080]:
+        for port in [5173, 8000]:
             subprocess.run(f"lsof -ti:{port} | xargs kill -9", shell=True, stderr=subprocess.DEVNULL)
     print("[+] Sunucular basariyla durduruldu.")
 

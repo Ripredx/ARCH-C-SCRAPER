@@ -44,7 +44,7 @@ function App() {
       wsRef.current.close();
     }
     
-    const ws = new WebSocket('ws://localhost:8080/api/harvester/logs');
+    const ws = new WebSocket('ws://localhost:8000/api/harvester/logs');
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -58,7 +58,7 @@ function App() {
 
     // 2. Start Scrape via HTTP POST
     try {
-      const response = await fetch('http://localhost:8080/api/harvester/start', {
+      const response = await fetch('http://localhost:8000/api/harvester/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
