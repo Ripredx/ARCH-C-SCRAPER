@@ -161,7 +161,7 @@ export default function CommandCenter() {
         <Panel defaultSize={20} minSize={10} maxSize={40} className="flex flex-col bg-[#050505] border-r border-gray-800">
           <div className="bg-[#0c0c0c] px-4 py-3 border-b border-gray-800 flex items-center justify-between">
             <span className="text-xs text-gray-500 font-bold flex items-center gap-2">
-              <BarChart2 size={14} /> SİSTEMDEKİ RAPORLAR
+              <BarChart2 size={14} /> GENEL ANALİZ RAPORLARI
             </span>
           </div>
           <div className="flex-1 overflow-y-auto">

@@ -259,7 +259,7 @@ export default function DataRefinery() {
         <Panel defaultSize={25} minSize={15} maxSize={40} className="flex flex-col bg-[#050505] border-r border-gray-800">
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {renderFileList('harvester_raw', 'KAZINMIŞ HAM VERİLER', <FileJson size={14} />)}
-            {renderFileList('llm_reports', 'YAPAY ZEKA RAPORLARI', <FileCode2 size={14} />)}
+            {renderFileList('llm_reports', 'GENEL ANALİZ RAPORLARI', <FileCode2 size={14} />)}
             {renderFileList('deep_crawl_reports', 'DERİN TARAMA RAPORLARI', <Globe size={14} />)}
           </div>
         </Panel>

@@ -237,32 +237,43 @@ app.post('/api/forge/analyze', async (req, res) => {
       };
     }
 
-    // Build static HTML template
-    let cardsHtml = '';
+    // Calculate Metrics
+    const rawBusinesses = JSON.parse(content);
+    const totalBusinesses = parsedData.businesses.length;
+    const webCount = parsedData.businesses.filter(b => b.website && b.website !== 'Bulunamadı' && b.website !== '').length;
+    const phonePercent = totalBusinesses > 0 ? Math.round((parsedData.businesses.filter(b => b.phone && b.phone !== 'Bulunamadı').length / totalBusinesses) * 100) + '%' : '0%';
+    
+    let totalRating = 0;
+    let ratingCount = 0;
+    for (const raw of rawBusinesses) {
+      if (raw.rating) {
+        totalRating += parseFloat(raw.rating);
+        ratingCount++;
+      }
+    }
+    const averageRating = ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 'Yok';
+    const reportTitle = filename.replace('.json', '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    // Build Table Rows
+    let tableRowsHtml = '';
     for (const b of parsedData.businesses) {
-      cardsHtml += `
-        <div class="bg-[#111] border border-gray-800 rounded-xl p-5 hover:border-gray-600 transition-colors">
-          <h3 class="text-lg font-semibold text-white mb-3">${b.name || 'Bilinmeyen Firma'}</h3>
-          <div class="space-y-2 mb-6">
-            <div class="flex items-start gap-3 text-sm text-gray-400">
-              <i class="fa-solid fa-phone mt-1 text-gray-500"></i>
-              <span>${b.phone || 'Bulunamadı'}</span>
-            </div>
-            <div class="flex items-start gap-3 text-sm text-gray-400">
-              <i class="fa-solid fa-location-dot mt-1 text-gray-500"></i>
-              <span>${b.address || 'Bulunamadı'}</span>
-            </div>
-            <div class="flex items-start gap-3 text-sm text-gray-400">
-              <i class="fa-solid fa-globe mt-1 text-gray-500"></i>
-              <a href="${b.website && b.website !== 'Bulunamadı' ? b.website : '#'}" target="_blank" class="text-[#04D9FF] hover:underline break-all">${b.website || 'Bulunamadı'}</a>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button data-action="deep-crawl" data-name="${b.name}" data-url="${b.website || ''}" class="w-full bg-[#04D9FF]/10 text-[#04D9FF] hover:bg-[#04D9FF] hover:text-black border border-[#04D9FF]/30 transition-all font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2">
-              <i class="fa-solid fa-spider"></i> Derin Tarama
+      const phoneText = b.phone && b.phone !== 'Bulunamadı' ? `<span class="text-[#00FF88] font-mono text-xs">${b.phone}</span>` : `<span class="text-gray-600 italic text-xs">Bulunamadı</span>`;
+      
+      const hasWeb = b.website && b.website !== 'Bulunamadı' && b.website !== '';
+      const webText = hasWeb ? `<a href="${b.website}" target="_blank" class="text-[#04D9FF] hover:underline text-xs break-all">${b.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>` : `<span class="text-red-500/70 bg-red-500/10 px-2 py-1 rounded text-xs font-medium">Web Sitesi Bulunamadı</span>`;
+
+      tableRowsHtml += `
+        <tr class="border-b border-gray-800/50 hover:bg-white/[0.02] transition-colors group">
+          <td class="px-6 py-4 font-bold text-gray-200 text-xs">${b.name || 'Bilinmeyen Firma'}</td>
+          <td class="px-6 py-4 whitespace-nowrap">${phoneText}</td>
+          <td class="px-6 py-4 text-xs text-gray-500 max-w-[200px] truncate" title="${b.address || ''}">${b.address || '-'}</td>
+          <td class="px-6 py-4 max-w-[200px]">${webText}</td>
+          <td class="px-6 py-4 text-right">
+            <button data-action="deep-crawl" data-name="${b.name}" data-url="${b.website || ''}" class="inline-flex items-center gap-2 bg-transparent hover:bg-[#00FF88]/10 text-[#00FF88] border border-[#00FF88]/30 px-4 py-2 rounded text-xs font-semibold transition-all shadow-[0_0_10px_rgba(0,255,136,0.05)] hover:shadow-[0_0_15px_rgba(0,255,136,0.2)]">
+              <i class="fa-solid fa-magnifying-glass"></i> Derin Tarama
             </button>
-          </div>
-        </div>
+          </td>
+        </tr>
       `;
     }
 
@@ -277,11 +288,11 @@ app.post('/api/forge/analyze', async (req, res) => {
       
       window.parent.postMessage({ 
         type: 'DEEP_CRAWL', 
-        url: urlEl && urlEl !== 'Bulunamadı' ? urlEl : 'Bulunamadı', 
+        url: urlEl && urlEl !== 'Bulunamadı' && urlEl !== '' ? urlEl : 'Bulunamadı', 
         company_name: nameEl 
       }, '*');
       
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Tarama Başlatıldı...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Başlatıldı...';
       btn.classList.add('opacity-50', 'cursor-not-allowed');
     }
   });
@@ -290,25 +301,93 @@ app.post('/api/forge/analyze', async (req, res) => {
 
     let htmlReport = `
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Veri Analizi Raporu</title>
+  <title>Genel Analiz Raporu</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { background-color: #0a0a0a; color: #e5e5e5; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { background-color: #050505; color: #e5e5e5; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    /* Özel scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0a0a0a; }
+    ::-webkit-scrollbar-thumb { background: #222; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #333; }
   </style>
 </head>
-<body class="p-8">
-  <div class="max-w-6xl mx-auto">
-    <h1 class="text-3xl font-bold mb-2 text-white"><i class="fa-solid fa-chart-pie mr-3 text-[#04D9FF]"></i> Pazar Analizi Raporu</h1>
-    <p class="text-gray-400 mb-8 border-l-2 border-[#04D9FF] pl-4 italic">${parsedData.summary || 'Bu rapor yapay zeka analizinden geçirilerek oluşturulmuştur.'}</p>
+<body class="p-4 md:p-8">
+  <div class="max-w-7xl mx-auto">
     
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      ${cardsHtml}
+    <!-- HEADER -->
+    <div class="flex flex-col items-center justify-center mb-10 mt-4">
+      <div class="w-12 h-12 bg-[#00FF88]/10 rounded-full flex items-center justify-center mb-5 border border-[#00FF88]/20 shadow-[0_0_20px_rgba(0,255,136,0.15)]">
+        <i class="fa-solid fa-chart-simple text-xl text-[#00FF88]"></i>
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold text-white mb-3 text-center tracking-tight">${reportTitle} Raporu</h1>
+      <p class="text-gray-500 text-sm font-medium tracking-wide">${totalBusinesses} işletme • Güncellenme: ${new Date().getFullYear()}</p>
     </div>
+
+    <!-- STATS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10 border-b border-gray-800/50 pb-10">
+      <div class="bg-[#0a0a0a] border border-gray-800/80 rounded-xl p-6 relative overflow-hidden transition-colors hover:border-gray-700">
+        <h2 class="text-3xl font-bold text-[#00FF88] mb-2">${totalBusinesses}</h2>
+        <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase">TOPLAM İŞLETME</p>
+      </div>
+      <div class="bg-[#0a0a0a] border border-gray-800/80 rounded-xl p-6 relative overflow-hidden transition-colors hover:border-gray-700">
+        <h2 class="text-3xl font-bold text-[#00FF88] mb-2">${webCount}</h2>
+        <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase">WEB SİTESİ / SOSYAL MEDYA</p>
+      </div>
+      <div class="bg-[#0a0a0a] border border-gray-800/80 rounded-xl p-6 relative overflow-hidden transition-colors hover:border-gray-700">
+        <h2 class="text-3xl font-bold text-[#00FF88] mb-2">${phonePercent}</h2>
+        <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase">TELEFON BİLGİSİ MEVCUT</p>
+      </div>
+      <div class="bg-[#0a0a0a] border border-gray-800/80 rounded-xl p-6 relative overflow-hidden transition-colors hover:border-gray-700">
+        <h2 class="text-3xl font-bold text-[#00FF88] mb-2">${averageRating}</h2>
+        <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase">ORTALAMA PUAN (GOOGLE)</p>
+      </div>
+    </div>
+
+    <!-- AI SUMMARY -->
+    <div class="mb-12">
+      <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-3">
+        <i class="fa-solid fa-chart-pie text-[#04D9FF]"></i> Pazar Analizi Raporu
+      </h2>
+      <div class="border-l-[3px] border-[#04D9FF] pl-5 py-2 bg-gradient-to-r from-[#04D9FF]/5 to-transparent">
+        <p class="text-gray-400 text-sm leading-relaxed italic font-medium">
+          ${parsedData.summary || 'Bu rapor yapay zeka analizinden geçirilerek oluşturulmuştur.'}
+        </p>
+      </div>
+    </div>
+
+    <!-- TABLE SECTION -->
+    <div class="flex flex-col md:flex-row md:items-center gap-4 mb-4 justify-between">
+      <div class="flex items-center gap-3">
+        <h3 class="text-lg font-bold text-white">İşletme Listesi</h3>
+        <span class="bg-[#00FF88]/10 text-[#00FF88] border border-[#00FF88]/20 px-2 py-0.5 rounded text-[10px] font-bold tracking-widest uppercase">Derin Analiz Hazır</span>
+      </div>
+    </div>
+
+    <div class="bg-[#0a0a0a] border border-gray-800/80 rounded-xl overflow-hidden mb-12 shadow-xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-400">
+          <thead class="text-[10px] uppercase bg-[#111] border-b border-gray-800 text-gray-500 font-bold tracking-wider">
+            <tr>
+              <th scope="col" class="px-6 py-4">İŞLETME ADI</th>
+              <th scope="col" class="px-6 py-4">TELEFON</th>
+              <th scope="col" class="px-6 py-4">ADRES</th>
+              <th scope="col" class="px-6 py-4">WEBSİTE / SOSYAL</th>
+              <th scope="col" class="px-6 py-4 text-right">İŞLEMLER</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-800/50">
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
   ${injectionScript}
 </body>
