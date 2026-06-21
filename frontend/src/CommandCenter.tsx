@@ -102,6 +102,27 @@ export default function CommandCenter() {
     }
   };
 
+  const handleDeleteReport = async (e: React.MouseEvent, filename: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`${filename} dosyasını silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      const res = await fetch(`http://localhost:8000/api/forge/content/llm_reports/${filename}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (selectedReport === filename) {
+          setSelectedReport(null);
+          setReportHtml('');
+        }
+        // Refresh reports
+        fetch('http://localhost:8000/api/forge/reports')
+          .then(r => r.json())
+          .then(data => setReports(data.reports));
+      }
+    } catch (err) {
+      console.error('Silme hatası:', err);
+    }
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (e.data && e.data.type === 'DEEP_CRAWL') {
@@ -145,16 +166,23 @@ export default function CommandCenter() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {reports.map(f => (
-              <button
+              <div
                 key={f}
-                onClick={() => handleSelectReport(f)}
-                className={`w-full text-left px-3 py-3 text-xs truncate transition-colors border-b border-gray-800/50 ${
+                className={`w-full text-left px-3 py-3 text-xs transition-colors border-b border-gray-800/50 flex justify-between items-center group cursor-pointer ${
                   selectedReport === f ? 'bg-neon-blue/20 text-neon-blue border-l-2 border-l-neon-blue' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                 }`}
                 title={f}
+                onClick={() => handleSelectReport(f)}
               >
-                {f.replace('report_', '').replace('.html', '')}
-              </button>
+                <span className="truncate pr-2">{f.replace('report_', '').replace('.html', '')}</span>
+                <button 
+                  onClick={(e) => handleDeleteReport(e, f)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
+                  title="Sil"
+                >
+                  ✕
+                </button>
+              </div>
             ))}
             {reports.length === 0 && (
               <div className="p-4 text-xs text-gray-600 text-center">Henüz rapor yok. Veri Kazıma menüsünden arama yaparak rapor üretebilirsiniz.</div>
