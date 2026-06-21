@@ -59,14 +59,81 @@ app.post('/api/harvester/start', async (req, res) => {
     const query = encodeURIComponent(`${keywords} ${location}`);
     await page.goto(`https://www.google.com/maps/search/${query}`, { waitUntil: 'domcontentloaded' });
     
-    sendLog('> Veriler kazınıyor...');
-    // Demo logic: wait a bit and mock some data for now, then we'll refine
-    await page.waitForTimeout(3000);
+    sendLog('> İşletmeler aranıyor... Bu işlem limitinize göre biraz sürebilir.');
     
-    const results = [
-      { name: `Örnek ${keywords} 1`, phone: '0555 555 5555', address: location, website: 'https://ornek.com' },
-      { name: `Örnek ${keywords} 2`, phone: '0532 323 3232', address: location, website: 'https://ornek2.com' }
-    ];
+    await page.waitForTimeout(4000);
+    
+    const results = [];
+    let elements = await page.locator('a[href*="/maps/place/"]').all();
+    let previousCount = 0;
+    let retries = 0;
+    
+    // Limite ulaşana kadar sol paneli aşağı kaydır (Auto-scroll)
+    while (elements.length < limit && retries < 3) {
+      previousCount = elements.length;
+      sendLog(`> Daha fazla sonuç yükleniyor... (${elements.length} / ${limit})`);
+      
+      try {
+        // Son elemana odaklan ve çeşitli yöntemlerle aşağı kaydır
+        await elements[elements.length - 1].hover();
+        await page.mouse.wheel(0, 5000);
+        await elements[elements.length - 1].focus();
+        await page.keyboard.press('PageDown');
+        
+        // Yeni sonuçların HTML'e yüklenmesini dinamik olarak bekle
+        await page.waitForFunction((prevCount) => {
+          return document.querySelectorAll('a[href*="/maps/place/"]').length > prevCount;
+        }, previousCount, { timeout: 3000 });
+        
+        retries = 0; // Yeni eleman geldiyse sayacı sıfırla
+      } catch (e) {
+        retries++; // 3 saniye içinde yeni eleman gelmediyse sayacı artır (Listenin sonu olabilir)
+      }
+      
+      elements = await page.locator('a[href*="/maps/place/"]').all();
+    }
+    
+    const count = Math.min(elements.length, limit || 5);
+    
+    if (count === 0) {
+      sendLog('> HATA: Google Haritalar arama sonucu bulamadı.');
+    } else {
+      for (let i = 0; i < count; i++) {
+        try {
+          const href = await elements[i].getAttribute('href');
+          const name = await elements[i].getAttribute('aria-label');
+          sendLog(`> İşleniyor (${i+1}/${count}): ${name || 'İşletme'}`);
+          
+          await elements[i].click();
+          await page.waitForTimeout(2000); 
+          
+          const phone = await page.evaluate(() => {
+            const btn = document.querySelector('button[data-item-id^="phone:"]');
+            return btn ? btn.innerText.trim().split('\\n').pop() : 'Bulunamadı';
+          }).catch(() => 'Bulunamadı');
+          
+          const website = await page.evaluate(() => {
+            const btn = document.querySelector('a[data-item-id="authority"]');
+            return btn ? btn.href : 'Bulunamadı';
+          }).catch(() => 'Bulunamadı');
+          
+          const addressText = await page.evaluate(() => {
+            const btn = document.querySelector('button[data-item-id="address"]');
+            return btn ? btn.innerText.trim().split('\\n').pop() : 'Bulunamadı';
+          }).catch(() => location);
+
+          results.push({
+            name: name || `İşletme ${i+1}`,
+            phone: phone,
+            address: addressText,
+            website: website,
+            url: href
+          });
+        } catch (err) {
+          sendLog(`> Atlandı (${i+1}): Veri okunamadı.`);
+        }
+      }
+    }
     
     const filename = `harvester_${Date.now()}.json`;
     fs.writeFileSync(path.join(dataDir, 'google_maps', filename), JSON.stringify(results, null, 2));

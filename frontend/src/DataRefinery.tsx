@@ -59,7 +59,7 @@ export default function DataRefinery() {
       try {
         const res = await fetch(`http://localhost:8000/api/forge/content/${category}/${filename}`);
         const data = await res.json();
-        setFileContent(data.content);
+        setFileContent(typeof data.content === 'string' ? data.content : JSON.stringify(data.content, null, 2));
       } catch (err) {
         console.error(err);
         setFileContent('// Error loading file content');
