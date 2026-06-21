@@ -383,15 +383,31 @@ app.post('/api/forge/deep-crawl-stream', async (req, res) => {
       browser = await chromium.launch({ headless: true });
       const page = await browser.newPage();
       
-      // 15 saniye zaman aşımı ile domcontentloaded bekle
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+      // Wait for full load to avoid mid-navigation evaluate errors
+      await page.goto(url, { waitUntil: 'load', timeout: 15000 }).catch(() => {});
+      
+      // Short delay for any client-side redirects to settle
+      await new Promise(r => setTimeout(r, 2000));
       
       res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
-      const pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
+      
+      let pageText = "";
+      try {
+        pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
+      } catch (e) {
+        if (e.message.includes('Execution context was destroyed')) {
+          // Page navigated again. Wait a bit and retry.
+          await new Promise(r => setTimeout(r, 3000));
+          pageText = await page.evaluate(() => document.body ? document.body.innerText : "").catch(() => "");
+        } else {
+          console.error("Evaluate error:", e);
+        }
+      }
+      
       cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000); // 15.000 karaktere kırp
       
       if (cleanedText.length < 50) {
-        throw new Error("Sitede yeterli içerik bulunamadı veya bot engellendi.");
+        throw new Error("Sitede yeterli içerik bulunamadı (Bot koruması veya boş sayfa).");
       }
       
       systemPrompt = "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: 1) Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı vb.) bul. 2) Onlara web tasarım/pazarlama satacak profesyonel bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma.";
