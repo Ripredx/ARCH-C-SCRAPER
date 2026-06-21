@@ -31,7 +31,7 @@ export default function CommandCenter() {
     setReportHtml('');
     
     try {
-      const res = await fetch(`http://localhost:8000/api/forge/report/${filename.replace('report_', '').replace('.html', '')}`);
+      const res = await fetch(`http://localhost:8000/api/forge/report/${filename.replace('.html', '')}`);
       const data = await res.json();
       if (data.exists) {
         setReportHtml(data.html);
@@ -42,85 +42,75 @@ export default function CommandCenter() {
     }
   };
 
-  const handleReportClick = async (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const button = target.closest('button') as HTMLButtonElement | null;
+  const triggerAction = async (action: string, company: string, url: string) => {
+    if (!action) return;
     
-    if (button) {
-      let action = '';
-      let company = 'Bilinmeyen Firma';
-      let url = '';
-
-      if (button.value) {
-        const parts = button.value.split('|');
-        action = parts[0];
-        company = parts[1] || 'Bilinmeyen Firma';
-        url = parts.slice(2).join('|') || '';
-      } else {
-        action = button.dataset.action || '';
-        company = button.dataset.company || 'Bilinmeyen Firma';
-        url = button.dataset.url || '';
-      }
-
-      if (!action) return; // Not an action button
-      
-      setModalOpen(true);
-      setIsModalLoading(true);
-      setModalContent('');
-      setCurrentCompany(company);
-      setDeepCrawlDone(false);
-      setDeepCrawlUrl('');
-      setModalTitle(action === 'deep-crawl' ? `${company} - Derin Kazıma` : `${company} - Satış Metni (Soğuk E-posta)`);
-      
-      try {
-        if (action === 'deep-crawl') {
-          const res = await fetch('http://localhost:8000/api/forge/deep-crawl-stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url, company_name: company })
-          });
+    setModalOpen(true);
+    setIsModalLoading(true);
+    setModalContent('');
+    setCurrentCompany(company);
+    setDeepCrawlDone(false);
+    setDeepCrawlUrl('');
+    setModalTitle(action === 'deep-crawl' ? `${company} - Derin Kazıma` : `${company} - Satış Metni (Soğuk E-posta)`);
+    
+    try {
+      if (action === 'deep-crawl') {
+        const res = await fetch('http://localhost:8000/api/forge/deep-crawl-stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, company_name: company })
+        });
+        
+        if (res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
           
-          if (res.body) {
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
             
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              
-              let chunk = decoder.decode(value, { stream: true });
-              if (chunk.includes("REPORT_URL:")) {
-                const parts = chunk.split("REPORT_URL:");
-                const urlPart = parts[1].split("\n")[0];
-                setDeepCrawlUrl(urlPart.trim());
-                chunk = parts[0] + (parts[1].substring(urlPart.length + 1) || "");
-              }
-              if (chunk.includes("DONE")) {
-                setModalContent(prev => prev + chunk.replace("DONE", ""));
-                if (!chunk.includes("HATA")) {
-                  setDeepCrawlDone(true);
-                }
-                break;
-              }
-              setModalContent(prev => prev + chunk);
+            let chunk = decoder.decode(value, { stream: true });
+            if (chunk.includes("REPORT_URL:")) {
+              const parts = chunk.split("REPORT_URL:");
+              const urlPart = parts[1].split("\n")[0];
+              setDeepCrawlUrl(urlPart.trim());
+              chunk = parts[0] + (parts[1].substring(urlPart.length + 1) || "");
             }
+            if (chunk.includes("DONE")) {
+              setModalContent(prev => prev + chunk.replace("DONE", ""));
+              if (!chunk.includes("HATA")) {
+                setDeepCrawlDone(true);
+              }
+              break;
+            }
+            setModalContent(prev => prev + chunk);
           }
-        } else if (action === 'generate-pitch') {
-          const res = await fetch('http://localhost:8000/api/forge/generate-pitch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ company_name: company, industry: 'Genel' })
-          });
-          const data = await res.json();
-          setModalContent(data.pitch || JSON.stringify(data));
         }
-      } catch (err) {
-        setModalContent(`Bağlantı hatası: ${err}`);
-      } finally {
-        setIsModalLoading(false);
+      } else if (action === 'generate-pitch') {
+        const res = await fetch('http://localhost:8000/api/forge/generate-pitch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company_name: company, industry: 'Genel' })
+        });
+        const data = await res.json();
+        setModalContent(data.pitch || JSON.stringify(data));
       }
+    } catch (err) {
+      setModalContent(`Bağlantı hatası: ${err}`);
+    } finally {
+      setIsModalLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'DEEP_CRAWL') {
+        triggerAction('deep-crawl', e.data.company_name, e.data.url);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleAnalyzeCrawl = async () => {
     setIsModalLoading(true);
@@ -184,9 +174,13 @@ export default function CommandCenter() {
               <span className="text-sm text-gray-200 font-bold tracking-widest">SATIŞ VE RAPORLAMA PANELİ</span>
             </div>
             
-            <div className="flex-1 p-6 overflow-y-auto bg-black text-gray-200">
-              {reportHtml ? (
-                <div onClick={handleReportClick} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(reportHtml, { ADD_ATTR: ['data-action', 'data-company', 'data-url', 'target'] }) }} />
+            <div className="flex-1 w-full h-full bg-[#0a0a0a]">
+              {selectedReport ? (
+                <iframe 
+                  src={`http://localhost:8000/static/reports/${selectedReport}`} 
+                  className="w-full h-full border-0 bg-transparent"
+                  title="AI Report"
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-600 font-mono space-y-4">
                   <div className="text-4xl">🤖</div>

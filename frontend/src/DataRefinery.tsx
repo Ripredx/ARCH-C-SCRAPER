@@ -19,7 +19,7 @@ export default function DataRefinery() {
     llm_reports: [],
     deep_crawl_reports: []
   });
-  
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     harvester_raw: true,
     llm_reports: false,
@@ -29,14 +29,14 @@ export default function DataRefinery() {
   const [selectedFile, setSelectedFile] = useState<{ category: string, filename: string, type: 'json' | 'html' } | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'view' | 'terminal'>('view');
-  
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [terminalLog, setTerminalLog] = useState<string>('');
-  
+
   const [aiProvider, setAiProvider] = useState<string>('grok');
   const [apiKey, setApiKey] = useState<string>('');
-  const [savedKeys, setSavedKeys] = useState<{grok: boolean, openai: boolean}>({ grok: false, openai: false });
-  
+  const [savedKeys, setSavedKeys] = useState<{ grok: boolean, openai: boolean }>({ grok: false, openai: false });
+
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,7 +56,48 @@ export default function DataRefinery() {
       .then(res => res.json())
       .then(data => setSavedKeys(data))
       .catch(console.error);
-  }, []);
+
+    const handleMessage = async (e: MessageEvent) => {
+      if (e.data && e.data.type === 'DEEP_CRAWL') {
+        const { url, company_name } = e.data;
+        setActiveTab('terminal');
+        setTerminalLog(`> [Sistem] ${company_name} için derin tarama tetiklendi.\\n> Hedef: ${url}\\n`);
+
+        try {
+          const res = await fetch('http://localhost:8000/api/forge/deep-crawl-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, company_name, provider: aiProvider })
+          });
+
+          if (!res.body) throw new Error("Akış (stream) desteklenmiyor.");
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+
+            if (chunk.includes("REPORT_URL:")) {
+              const reportUrl = chunk.split("REPORT_URL:")[1].split("\\n")[0];
+              setTerminalLog(prev => prev + `\\n> İşlem tamamlandı! Yeni rapor oluşturuldu.\\n`);
+              fetchFiles(); // Refresh files
+            } else if (chunk.includes("DONE")) {
+              break;
+            } else {
+              setTerminalLog(prev => prev + chunk);
+            }
+          }
+        } catch (err) {
+          setTerminalLog(prev => prev + `\\n> Hata: ${err}`);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [aiProvider]);
 
   const handleSaveKey = async () => {
     if (!apiKey) return;
@@ -113,7 +154,7 @@ export default function DataRefinery() {
     const isHtml = filename.endsWith('.html');
     setSelectedFile({ category, filename, type: isHtml ? 'html' : 'json' });
     setTerminalLog('');
-    
+
     if (!isHtml) {
       try {
         const res = await fetch(`http://localhost:8000/api/forge/content/${category}/${filename}`);
@@ -130,29 +171,32 @@ export default function DataRefinery() {
     if (!selectedFile || selectedFile.category !== 'harvester_raw') return;
     setIsAnalyzing(true);
     setActiveTab('terminal');
-    setTerminalLog('> Veriler yerel Yapay Zeka (LM Studio) motoruna gönderiliyor...');
+    setTerminalLog('> Veriler yerel Yapay Zeka motoruna gönderiliyor...');
 
     try {
       const response = await fetch('http://localhost:8000/api/forge/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           filename: selectedFile.filename,
           provider: aiProvider,
           apiKey: apiKey
         })
       });
 
-      if (!response.ok) throw new Error("API hatası: " + response.statusText);
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.log || data.error || response.statusText);
+      }
+
       setTerminalLog(data.log + '\n\n> İşlem tamamlandı. Sonuçları görmek için "Komuta Merkezi" sekmesine geçebilirsiniz.');
-      
+
       // Refresh files list
       const resFiles = await fetch('http://localhost:8000/api/forge/all-files');
       const dataFiles = await resFiles.json();
       setCategories(dataFiles);
-      
+
     } catch (error) {
       setTerminalLog(prev => prev + `\n\n> Error: ${error}`);
     } finally {
@@ -166,7 +210,7 @@ export default function DataRefinery() {
 
     return (
       <div className="border-b border-gray-800">
-        <button 
+        <button
           onClick={() => toggleSection(categoryKey)}
           className="w-full flex items-center justify-between px-4 py-3 bg-[#0c0c0c] hover:bg-[#111] transition-colors"
         >
@@ -175,7 +219,7 @@ export default function DataRefinery() {
           </span>
           {isOpen ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
         </button>
-        
+
         {isOpen && (
           <div className="flex flex-col bg-[#050505] max-h-60 overflow-y-auto">
             {files.map(f => {
@@ -184,13 +228,12 @@ export default function DataRefinery() {
                 <button
                   key={f}
                   onClick={() => handleSelectFile(categoryKey, f)}
-                  className={`w-full text-left px-4 py-2.5 text-xs transition-colors border-b border-gray-800/30 flex justify-between items-center group ${
-                    isSelected ? 'bg-neon-blue/20 text-neon-blue border-l-2 border-l-neon-blue' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  }`}
+                  className={`w-full text-left px-4 py-2.5 text-xs transition-colors border-b border-gray-800/30 flex justify-between items-center group ${isSelected ? 'bg-neon-blue/20 text-neon-blue border-l-2 border-l-neon-blue' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                    }`}
                   title={f}
                 >
                   <span className="truncate pr-2">{f.replace('raw_data_google_maps_', '').replace('_deep_crawl', '').replace('report_raw_data_google_maps_', '')}</span>
-                  <div 
+                  <div
                     onClick={(e) => handleDeleteFile(e, categoryKey, f)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
                     title="Sil"
@@ -232,45 +275,42 @@ export default function DataRefinery() {
               <div className="flex">
                 <button
                   onClick={() => setActiveTab('view')}
-                  className={`px-4 py-3 text-xs font-mono flex items-center gap-2 border-r border-gray-800 transition-colors ${
-                    activeTab === 'view' ? 'bg-[#0c0c0c] text-neon-blue border-t-2 border-t-neon-blue' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] border-t-2 border-t-transparent'
-                  }`}
+                  className={`px-4 py-3 text-xs font-mono flex items-center gap-2 border-r border-gray-800 transition-colors ${activeTab === 'view' ? 'bg-[#0c0c0c] text-neon-blue border-t-2 border-t-neon-blue' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] border-t-2 border-t-transparent'
+                    }`}
                 >
                   <FileJson size={14} /> Görüntüleyici
                 </button>
                 <button
                   onClick={() => setActiveTab('terminal')}
-                  className={`px-4 py-3 text-xs font-mono flex items-center gap-2 border-r border-gray-800 transition-colors ${
-                    activeTab === 'terminal' ? 'bg-[#0c0c0c] text-neon-blue border-t-2 border-t-neon-blue' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] border-t-2 border-t-transparent'
-                  }`}
+                  className={`px-4 py-3 text-xs font-mono flex items-center gap-2 border-r border-gray-800 transition-colors ${activeTab === 'terminal' ? 'bg-[#0c0c0c] text-neon-blue border-t-2 border-t-neon-blue' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] border-t-2 border-t-transparent'
+                    }`}
                 >
                   <Cpu size={14} className={isAnalyzing && activeTab !== 'terminal' ? "animate-pulse text-neon-blue" : ""} /> İşlem Logları
                 </button>
               </div>
-              
+
               <div className="px-4 flex items-center gap-3">
                 {selectedFile?.category === 'harvester_raw' && (
                   <>
-                    <select 
+                    <select
                       value={aiProvider}
                       onChange={(e) => setAiProvider(e.target.value)}
                       className="bg-[#050505] border border-gray-700 text-gray-300 rounded px-2 py-1.5 text-xs focus:border-neon-blue focus:outline-none"
                     >
-                      <option value="grok">Grok API (grok-2-mini)</option>
+                      <option value="grok">Grok API (grok-4.20-0309-non-reasoning)</option>
                       <option value="openai">OpenAI (gpt-4o-mini)</option>
                       <option value="lmstudio">LM Studio (Yerel Seçili Model)</option>
                     </select>
 
                     {aiProvider !== 'lmstudio' && (
                       <div className="flex items-center gap-2">
-                        <input 
+                        <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => setApiKey(e.target.value)}
                           placeholder={savedKeys[aiProvider as keyof typeof savedKeys] ? "Sistemde Kayıtlı (Gizli)" : "API Anahtarı (sk-...)"}
-                          className={`bg-[#050505] border text-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none w-56 ${
-                            savedKeys[aiProvider as keyof typeof savedKeys] ? 'border-green-800/50 focus:border-green-500' : 'border-gray-700 focus:border-neon-blue'
-                          }`}
+                          className={`bg-[#050505] border text-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none w-56 ${savedKeys[aiProvider as keyof typeof savedKeys] ? 'border-green-800/50 focus:border-green-500' : 'border-gray-700 focus:border-neon-blue'
+                            }`}
                         />
                         <button onClick={handleSaveKey} title="Anahtarı Kaydet" className="text-gray-500 hover:text-green-500 transition-colors">
                           <Save size={14} />
@@ -282,17 +322,16 @@ export default function DataRefinery() {
                         )}
                       </div>
                     )}
-                  <button
-                    onClick={handleAnalyze}
-                    disabled={isAnalyzing}
-                    className={`text-xs px-4 py-1.5 rounded flex items-center gap-2 border transition-colors font-bold tracking-wider ${
-                      isAnalyzing 
-                        ? 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed' 
-                        : 'bg-transparent border-neon-blue text-neon-blue hover:bg-neon-blue/10'
-                    }`}
-                  >
-                    <Play size={12} fill="currentColor" /> {isAnalyzing ? 'İŞLENİYOR...' : 'YAPAY ZEKA İLE ANALİZ ET'}
-                  </button>
+                    <button
+                      onClick={handleAnalyze}
+                      disabled={isAnalyzing}
+                      className={`text-xs px-4 py-1.5 rounded flex items-center gap-2 border transition-colors font-bold tracking-wider ${isAnalyzing
+                          ? 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed'
+                          : 'bg-transparent border-neon-blue text-neon-blue hover:bg-neon-blue/10'
+                        }`}
+                    >
+                      <Play size={12} fill="currentColor" /> {isAnalyzing ? 'İŞLENİYOR...' : 'YAPAY ZEKA İLE ANALİZ ET'}
+                    </button>
                   </>
                 )}
               </div>
@@ -313,8 +352,11 @@ export default function DataRefinery() {
                         </SyntaxHighlighter>
                       </div>
                     ) : (
-                      <iframe 
-                        src={`http://localhost:8000/static/${selectedFile.category.startsWith('deep_crawl') ? 'deep_crawl' : selectedFile.category}/${selectedFile.filename}`}
+                      <iframe
+                        src={`http://localhost:8000/static/${selectedFile.category.startsWith('deep_crawl') ? 'deep_crawl' :
+                            selectedFile.category === 'llm_reports' ? 'reports' :
+                              selectedFile.category
+                          }/${selectedFile.filename}`}
                         className="w-full h-full border-0 bg-white"
                         title="HTML Report"
                       />
@@ -326,7 +368,7 @@ export default function DataRefinery() {
                   )}
                 </div>
               )}
-              
+
               {activeTab === 'terminal' && (
                 <div className="h-full bg-black p-6 font-mono text-sm overflow-y-auto">
                   {terminalLog ? (
@@ -341,7 +383,7 @@ export default function DataRefinery() {
           </div>
         </Panel>
       </PanelGroup>
-      
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;

@@ -201,7 +201,7 @@ app.post('/api/forge/analyze', async (req, res) => {
       const finalKey = apiKey || process.env.GROK_API_KEY;
       if (!finalKey) throw new Error('Grok API anahtarı bulunamadı! Lütfen arayüzden girin veya kaydedin.');
       clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: finalKey };
-      modelName = 'grok-2-mini';
+      modelName = 'grok-4.20-0309-non-reasoning'; // Kullanicinin metin/yorum odakli stratejik secimi
     } else if (provider === 'openai') {
       const finalKey = apiKey || process.env.OPENAI_API_KEY;
       if (!finalKey) throw new Error('OpenAI API anahtarı bulunamadı! Lütfen arayüzden girin veya kaydedin.');
@@ -214,19 +214,111 @@ app.post('/api/forge/analyze', async (req, res) => {
     const completion = await aiClient.chat.completions.create({
       model: modelName,
       messages: [
-        { role: "system", content: "Sen bir veri analiz uzmanısın. Aşağıdaki JSON verisini incele ve HTML formatında güzel, gelişmiş bir satış raporu oluştur. İşletmelerin isimlerini, telefonlarını şık bir CSS (koyu tema, neon renkler) tablo veya kart yapısıyla sun. Butonlara data-action='deep-crawl' özelliklerini eklemeyi unutma. Html ve css'in mükemmel olsun." },
+        { role: "system", content: "Sen bir veri analiz uzmanısın. Aşağıdaki ham JSON verisini incele. Çıktıyı KESİNLİKLE sadece JSON formatında ver. JSON formatı şu şekilde olmalı:\n{\n  \"summary\": \"Sektördeki işletmelerin genel durumu hakkında 2-3 cümlelik yönetici özeti.\",\n  \"businesses\": [\n    { \"name\": \"Firma Adı\", \"phone\": \"Telefon veya Bulunamadı\", \"address\": \"Adres\", \"website\": \"Web Sitesi veya Bulunamadı\" }\n  ]\n}\nSadece geçerli bir JSON döndür, kod bloğu (```json) kullanma, fazladan açıklama yazma." },
         { role: "user", content: `Veri: ${content}` }
       ],
     });
     
-    // Gelen yanıttan markdown etiketlerini (```html ...) temizle
-    let htmlReport = completion.choices[0].message.content;
-    htmlReport = htmlReport.replace(/^```html\\s*/i, '').replace(/```\\s*$/i, '');
+    // Parse LLM output
+    let aiResponse = completion.choices[0].message.content;
+    const match = aiResponse.match(/```json([\s\S]*?)```/i) || aiResponse.match(/```([\s\S]*?)```/i);
+    if (match && match[1]) {
+      aiResponse = match[1].trim();
+    }
+    
+    let parsedData;
+    try {
+      parsedData = JSON.parse(aiResponse);
+    } catch (e) {
+      // Fallback if AI fails to return proper JSON
+      parsedData = {
+        summary: "Yapay zeka analiz sonucu düzgün alınamadı. Orijinal veri kullanılıyor.",
+        businesses: JSON.parse(content)
+      };
+    }
+
+    // Build static HTML template
+    let cardsHtml = '';
+    for (const b of parsedData.businesses) {
+      cardsHtml += `
+        <div class="bg-[#111] border border-gray-800 rounded-xl p-5 hover:border-gray-600 transition-colors">
+          <h3 class="text-lg font-semibold text-white mb-3">${b.name || 'Bilinmeyen Firma'}</h3>
+          <div class="space-y-2 mb-6">
+            <div class="flex items-start gap-3 text-sm text-gray-400">
+              <i class="fa-solid fa-phone mt-1 text-gray-500"></i>
+              <span>${b.phone || 'Bulunamadı'}</span>
+            </div>
+            <div class="flex items-start gap-3 text-sm text-gray-400">
+              <i class="fa-solid fa-location-dot mt-1 text-gray-500"></i>
+              <span>${b.address || 'Bulunamadı'}</span>
+            </div>
+            <div class="flex items-start gap-3 text-sm text-gray-400">
+              <i class="fa-solid fa-globe mt-1 text-gray-500"></i>
+              <a href="${b.website && b.website !== 'Bulunamadı' ? b.website : '#'}" target="_blank" class="text-[#04D9FF] hover:underline break-all">${b.website || 'Bulunamadı'}</a>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button data-action="deep-crawl" data-name="${b.name}" data-url="${b.website || ''}" class="w-full bg-[#04D9FF]/10 text-[#04D9FF] hover:bg-[#04D9FF] hover:text-black border border-[#04D9FF]/30 transition-all font-medium py-2 rounded-lg text-sm flex items-center justify-center gap-2">
+              <i class="fa-solid fa-spider"></i> Derin Tarama
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    const injectionScript = `
+<script>
+  document.addEventListener('click', function(e) {
+    let btn = e.target.closest('[data-action="deep-crawl"]');
+    if (btn) {
+      e.preventDefault();
+      const urlEl = btn.getAttribute('data-url');
+      const nameEl = btn.getAttribute('data-name');
+      
+      window.parent.postMessage({ 
+        type: 'DEEP_CRAWL', 
+        url: urlEl && urlEl !== 'Bulunamadı' ? urlEl : 'Bulunamadı', 
+        company_name: nameEl 
+      }, '*');
+      
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Tarama Başlatıldı...';
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+  });
+</script>
+`;
+
+    let htmlReport = `
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veri Analizi Raporu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #0a0a0a; color: #e5e5e5; font-family: ui-sans-serif, system-ui, sans-serif; }
+  </style>
+</head>
+<body class="p-8">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="text-3xl font-bold mb-2 text-white"><i class="fa-solid fa-chart-pie mr-3 text-[#04D9FF]"></i> Pazar Analizi Raporu</h1>
+    <p class="text-gray-400 mb-8 border-l-2 border-[#04D9FF] pl-4 italic">${parsedData.summary || 'Bu rapor yapay zeka analizinden geçirilerek oluşturulmuştur.'}</p>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      ${cardsHtml}
+    </div>
+  </div>
+  ${injectionScript}
+</body>
+</html>
+`;
 
     const reportName = `report_${Date.now()}.html`;
     fs.writeFileSync(path.join(dataDir, 'reports', reportName), htmlReport);
     
-    res.json({ log: `> Yapay zeka analizi (${(provider || 'lmstudio').toUpperCase()}) tamamlandı ve rapor oluşturuldu.` });
+    res.json({ log: `> Yapay zeka analizi (${(provider || 'lmstudio').toUpperCase()}) tamamlandı ve rapor şablonu oluşturuldu.` });
   } catch (err) {
     res.status(500).json({ log: `> Yapay zeka hatası: ${err.message}` });
   }
@@ -264,23 +356,83 @@ app.post('/api/forge/generate-pitch', async (req, res) => {
   }
 });
 
-app.post('/api/forge/deep-crawl-stream', (req, res) => {
-  const { url, company_name } = req.body;
+app.post('/api/forge/deep-crawl-stream', async (req, res) => {
+  const { url, company_name, provider } = req.body;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Transfer-Encoding', 'chunked');
   
   res.write(`> [Deep Crawl] Başlatılıyor: ${company_name} - ${url}\n`);
   
-  setTimeout(() => {
-    // Demo crawl success
-    const fakeHtml = `<html><body><h1>${company_name} Raporu</h1><p>Derin kazıma tamamlandı.</p></body></html>`;
-    const safeName = company_name.replace(/\\s+/g, '_');
-    fs.writeFileSync(path.join(dataDir, 'deep_crawl', `${safeName}_deep_crawl.html`), fakeHtml);
+  let browser;
+  try {
+    if (!url || url === 'Bulunamadı' || !url.startsWith('http')) {
+      throw new Error("Geçerli bir web sitesi adresi yok!");
+    }
+
+    res.write(`> [Playwright] Web sitesine sızılıyor...\n`);
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
     
-    res.write(`REPORT_URL:http://localhost:8000/static/deep_crawl/${safeName}_deep_crawl.html\n`);
+    // 15 saniye zaman aşımı ile domcontentloaded bekle
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    
+    res.write(`> [Playwright] Metinler ve iletişim verileri süpürülüyor...\n`);
+    const pageText = await page.evaluate(() => document.body ? document.body.innerText : "");
+    const cleanedText = pageText.replace(/\s+/g, ' ').trim().substring(0, 15000); // 15.000 karaktere kırp
+    
+    if (cleanedText.length < 50) {
+      throw new Error("Sitede yeterli içerik bulunamadı veya bot engellendi.");
+    }
+
+    const aiProvider = provider || 'grok';
+    res.write(`> [Yapay Zeka] ${aiProvider.toUpperCase()} motoruna veri gönderiliyor...\n`);
+
+    let clientOptions = { baseURL: 'http://localhost:1234/v1', apiKey: 'lm-studio' };
+    let modelName = 'local-model';
+
+    if (aiProvider === 'grok') {
+      const finalKey = process.env.GROK_API_KEY;
+      if (!finalKey) throw new Error('Grok API anahtarı sunucuda kayıtlı değil!');
+      clientOptions = { baseURL: 'https://api.x.ai/v1', apiKey: finalKey };
+      modelName = 'grok-4.20-0309-non-reasoning';
+    } else if (aiProvider === 'openai') {
+      const finalKey = process.env.OPENAI_API_KEY;
+      if (!finalKey) throw new Error('OpenAI API anahtarı sunucuda kayıtlı değil!');
+      clientOptions = { apiKey: finalKey }; 
+      modelName = 'gpt-4o-mini';
+    }
+
+    const aiClient = new OpenAI(clientOptions);
+    const completion = await aiClient.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: "system", content: "Sen acımasız ve ikna edici bir dijital pazarlama stratejistisin. Sana bir işletmenin web sitesinden kazınmış ham metinleri vereceğim. Şunları yap: 1) Sitedeki eksiklikleri (iletişim zayıflığı, hizmet detaysızlığı vb.) bul. 2) Onlara web tasarım/pazarlama satacak profesyonel bir SOĞUK E-POSTA (Pitch) yaz. Çıktıyı koyu arkaplanlı, çok şık, temiz ve minimalist bir HTML sayfası olarak ver (neon renkler veya abartılı CSS kullanma, sade ve profesyonel olsun). Kod dışı markdown yazma." },
+        { role: "user", content: `Firma Adı: ${company_name}\nWeb Sitesi Verisi:\n${cleanedText}` }
+      ],
+    });
+
+    let htmlReport = completion.choices[0].message.content;
+    const match = htmlReport.match(/```html([\s\S]*?)```/i) || htmlReport.match(/```([\s\S]*?)```/i) || htmlReport.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i) || htmlReport.match(/(<html[\s\S]*?<\/html>)/i);
+    if (match && match[1]) {
+      htmlReport = match[1].trim();
+    }
+
+    res.write(`> [Raporlama] Zayıf noktalar analiz edildi, Rapor oluşturuldu.\n`);
+    
+    const safeName = company_name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const fileName = `${safeName}_deep_crawl_${Date.now()}.html`;
+    fs.writeFileSync(path.join(dataDir, 'deep_crawl', fileName), htmlReport);
+    
+    res.write(`REPORT_URL:http://localhost:8000/static/deep_crawl/${fileName}\n`);
     res.write('DONE');
+    
+  } catch (err) {
+    res.write(`> ERROR: ${err.message}\n`);
+    res.write('DONE');
+  } finally {
+    if (browser) await browser.close();
     res.end();
-  }, 3000);
+  }
 });
 
 app.listen(8000, () => {

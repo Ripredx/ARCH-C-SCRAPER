@@ -1,9 +1,32 @@
-# Node
+# OS & Editors
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Node & Build
 node_modules/
 dist/
+dist-ssr/
 .env
+.env.*
+*.local
 
-# Python
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python (Legacy)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -11,14 +34,10 @@ venv/
 env/
 .venv/
 
-# Outputs
+# Outputs & Data
 backend/outputs/*
 !backend/outputs/.gitkeep
 backend/data/*
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Documentation / Notes
 devlog.md
