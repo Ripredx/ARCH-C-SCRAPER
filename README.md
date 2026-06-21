@@ -37,9 +37,15 @@
 
 ### 1. Kurulum Komutları
 
+**Otomatik Kurulum (Önerilen):**
+Proje kök dizininde bulunan **`install.bat`** dosyasına tıklayarak tüm Python ve Node.js bağımlılıklarını tek tıkla otomatik olarak kurabilirsiniz.
+
+**Manuel Kurulum:**
 Backend gereksinimlerini kurmak için:
 ```bash
 cd backend
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
 playwright install
 ```
