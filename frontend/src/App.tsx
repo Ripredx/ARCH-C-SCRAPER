@@ -12,6 +12,7 @@ function App() {
   const [location, setLocation] = useState('');
   const [source, setSource] = useState('google_maps');
   const [limit, setLimit] = useState(10);
+  const [isVisible, setIsVisible] = useState(true);
   
   // Terminal State
   const [logs, setLogs] = useState<string[]>(['Arch/C Scrapling Engine v0.1 initialized.', 'Awaiting parameters...']);
@@ -67,7 +68,8 @@ function App() {
           keywords,
           location,
           source,
-          limit
+          limit,
+          isVisible
         }),
       });
       
@@ -223,6 +225,18 @@ function App() {
                         max="100"
                         className="w-full bg-[#050505] border border-gray-700 rounded p-2 text-sm focus:border-neon-blue focus:outline-none transition-colors" 
                       />
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <input 
+                        type="checkbox" 
+                        id="visibleToggle"
+                        checked={isVisible}
+                        onChange={e => setIsVisible(e.target.checked)}
+                        className="accent-[#04D9FF] w-4 h-4 cursor-pointer"
+                      />
+                      <label htmlFor="visibleToggle" className="text-xs text-gray-400 cursor-pointer hover:text-white transition-colors">
+                        Görünür Mod (Tarayıcıyı Göster)
+                      </label>
                     </div>
                     <button 
                       onClick={handleInitiateScrape}
