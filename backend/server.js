@@ -170,6 +170,19 @@ app.get('/api/forge/content/:category/:filename', (req, res) => {
   }
 });
 
+app.delete('/api/forge/content/:category/:filename', (req, res) => {
+  const { category, filename } = req.params;
+  const dirMap = { 'harvester_raw': 'google_maps', 'deep_crawl_reports': 'deep_crawl', 'llm_reports': 'reports' };
+  const realDir = dirMap[category] || category;
+  const p = path.join(dataDir, realDir, filename);
+  if (fs.existsSync(p)) {
+    fs.unlinkSync(p);
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
 // 3. AI ANALYZE
 app.post('/api/forge/analyze', async (req, res) => {
   const { filename } = req.body;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileJson, Cpu, Play, ChevronDown, ChevronRight, FileCode2, Globe } from 'lucide-react';
+import { FileJson, Cpu, Play, ChevronDown, ChevronRight, FileCode2, Globe, Trash2 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
@@ -39,12 +39,34 @@ export default function DataRefinery() {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [terminalLog]);
 
-  useEffect(() => {
+  const fetchFiles = () => {
     fetch('http://localhost:8000/api/forge/all-files')
       .then(res => res.json())
       .then(data => setCategories(data))
       .catch(err => console.error("Could not fetch files:", err));
+  };
+
+  useEffect(() => {
+    fetchFiles();
   }, []);
+
+  const handleDeleteFile = async (e: React.MouseEvent, category: string, filename: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`${filename} dosyasını silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      const res = await fetch(`http://localhost:8000/api/forge/content/${category}/${filename}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (selectedFile?.filename === filename) {
+          setSelectedFile(null);
+          setFileContent('');
+        }
+        fetchFiles();
+      }
+    } catch (err) {
+      console.error('Silme hatası:', err);
+    }
+  };
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -121,12 +143,19 @@ export default function DataRefinery() {
                 <button
                   key={f}
                   onClick={() => handleSelectFile(categoryKey, f)}
-                  className={`w-full text-left px-4 py-2.5 text-xs truncate transition-colors border-b border-gray-800/30 ${
+                  className={`w-full text-left px-4 py-2.5 text-xs transition-colors border-b border-gray-800/30 flex justify-between items-center group ${
                     isSelected ? 'bg-neon-blue/20 text-neon-blue border-l-2 border-l-neon-blue' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   }`}
                   title={f}
                 >
-                  {f.replace('raw_data_google_maps_', '').replace('_deep_crawl', '').replace('report_raw_data_google_maps_', '')}
+                  <span className="truncate pr-2">{f.replace('raw_data_google_maps_', '').replace('_deep_crawl', '').replace('report_raw_data_google_maps_', '')}</span>
+                  <div 
+                    onClick={(e) => handleDeleteFile(e, categoryKey, f)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
+                    title="Sil"
+                  >
+                    <Trash2 size={14} />
+                  </div>
                 </button>
               );
             })}

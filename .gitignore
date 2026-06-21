@@ -14,6 +14,7 @@ env/
 # Outputs
 backend/outputs/*
 !backend/outputs/.gitkeep
+backend/data/*
 
 # OS
 .DS_Store
