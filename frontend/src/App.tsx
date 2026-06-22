@@ -12,9 +12,10 @@ function App() {
   const [location, setLocation] = useState('');
   const [source, setSource] = useState('google_maps');
   const [limit, setLimit] = useState(10);
+  const [isVisible, setIsVisible] = useState(true);
   
   // Terminal State
-  const [logs, setLogs] = useState<string[]>(['Arch/C Scrapling Engine v0.1 initialized.', 'Awaiting parameters...']);
+  const [logs, setLogs] = useState<string[]>(['Kazıma Motoru başlatıldı.', 'İşlem bekleniyor...']);
   const [isScraping, setIsScraping] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -37,14 +38,14 @@ function App() {
     if (!keywords) return;
     
     setIsScraping(true);
-    setLogs(['> Connecting to Scrapling Engine...']);
+    setLogs(['> Kazıma motoruna bağlanılıyor...']);
 
     // 1. Setup WebSocket for live logs
     if (wsRef.current) {
       wsRef.current.close();
     }
     
-    const ws = new WebSocket('ws://localhost:8080/api/harvester/logs');
+    const ws = new WebSocket('ws://localhost:8000/api/harvester/logs');
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -58,7 +59,7 @@ function App() {
 
     // 2. Start Scrape via HTTP POST
     try {
-      const response = await fetch('http://localhost:8080/api/harvester/start', {
+      const response = await fetch('http://localhost:8000/api/harvester/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +68,8 @@ function App() {
           keywords,
           location,
           source,
-          limit
+          limit,
+          isVisible
         }),
       });
       
@@ -117,10 +119,10 @@ function App() {
                 ? 'bg-gray-800/50 text-neon-blue border border-neon-blue' 
                 : 'hover:bg-gray-800/30 hover:text-white border border-transparent'
             }`}
-            title={isSidebarCollapsed ? 'The Harvester' : ''}
+            title={isSidebarCollapsed ? 'Veri Kazıma' : ''}
           >
             <Activity size={18} />
-            {!isSidebarCollapsed && <span>The Harvester</span>}
+            {!isSidebarCollapsed && <span>Veri Kazıma</span>}
           </button>
 
           <button
@@ -130,10 +132,10 @@ function App() {
                 ? 'bg-gray-800/50 text-neon-blue border border-neon-blue' 
                 : 'hover:bg-gray-800/30 hover:text-white border border-transparent'
             }`}
-            title={isSidebarCollapsed ? 'Veri Rafinerisi' : ''}
+            title={isSidebarCollapsed ? 'Dosya Yöneticisi' : ''}
           >
             <Database size={18} />
-            {!isSidebarCollapsed && <span>Veri Rafinerisi</span>}
+            {!isSidebarCollapsed && <span>Dosya Yöneticisi</span>}
           </button>
 
           <button
@@ -143,10 +145,10 @@ function App() {
                 ? 'bg-gray-800/50 text-neon-blue border border-neon-blue' 
                 : 'hover:bg-gray-800/30 hover:text-white border border-transparent'
             }`}
-            title={isSidebarCollapsed ? 'Komuta Merkezi' : ''}
+            title={isSidebarCollapsed ? 'Rapor & Analiz' : ''}
           >
             <Cpu size={18} />
-            {!isSidebarCollapsed && <span>Komuta Merkezi</span>}
+            {!isSidebarCollapsed && <span>Rapor & Analiz</span>}
           </button>
         </nav>
         
@@ -166,9 +168,9 @@ function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b border-gray-800 flex items-center px-6 justify-between bg-[#0a0a0a]/80 backdrop-blur-sm">
           <h2 className="text-lg font-semibold text-white tracking-widest">
-            {activeTab === 'harvester' && '> THE_HARVESTER'}
-            {activeTab === 'refinery' && '> DATA_REFINERY'}
-            {activeTab === 'command' && '> COMMAND_CENTER'}
+            {activeTab === 'harvester' && '> VERİ_KAZIMA_PANELİ'}
+            {activeTab === 'refinery' && '> DOSYA_YÖNETİCİSİ'}
+            {activeTab === 'command' && '> RAPOR_VE_ANALİZ'}
           </h2>
           <div className="flex items-center gap-4 text-sm">
             <span className="flex items-center gap-2"><Terminal size={16}/> LLM: Disconnected</span>
@@ -180,21 +182,21 @@ function App() {
               <div className="h-full flex flex-col md:flex-row gap-6">
                 {/* Control Panel */}
                 <div className="w-full md:w-1/3 bg-[#111] border border-gray-800 rounded-lg p-5 flex flex-col gap-4 overflow-y-auto">
-                  <h3 className="text-neon-blue font-bold mb-2">TARGET PARAMETERS</h3>
+                  <h3 className="text-neon-blue font-bold mb-2">KAZIMA AYARLARI</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Source Target</label>
+                      <label className="block text-xs text-gray-500 mb-1">Hedef Platform</label>
                       <select 
                         value={source} 
                         onChange={e => setSource(e.target.value)}
                         className="w-full bg-[#050505] border border-gray-700 rounded p-2 text-sm focus:border-neon-blue focus:outline-none transition-colors"
                       >
-                        <option value="google_maps">Google Maps</option>
-                        <option value="google_search">Google Search</option>
+                        <option value="google_maps">Google Haritalar</option>
+                        <option value="google_search">Google Arama</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Keywords</label>
+                      <label className="block text-xs text-gray-500 mb-1">Anahtar Kelimeler</label>
                       <input 
                         type="text" 
                         value={keywords}
@@ -204,17 +206,17 @@ function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Location</label>
+                      <label className="block text-xs text-gray-500 mb-1">Lokasyon / Şehir</label>
                       <input 
                         type="text" 
                         value={location}
                         onChange={e => setLocation(e.target.value)}
                         className="w-full bg-[#050505] border border-gray-700 rounded p-2 text-sm focus:border-neon-blue focus:outline-none transition-colors" 
-                        placeholder="e.g. London" 
+                        placeholder="Örn. İstanbul" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Max Results Limit</label>
+                      <label className="block text-xs text-gray-500 mb-1">Maksimum Sonuç Limiti</label>
                       <input 
                         type="number" 
                         value={limit}
@@ -224,13 +226,25 @@ function App() {
                         className="w-full bg-[#050505] border border-gray-700 rounded p-2 text-sm focus:border-neon-blue focus:outline-none transition-colors" 
                       />
                     </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <input 
+                        type="checkbox" 
+                        id="visibleToggle"
+                        checked={isVisible}
+                        onChange={e => setIsVisible(e.target.checked)}
+                        className="accent-[#04D9FF] w-4 h-4 cursor-pointer"
+                      />
+                      <label htmlFor="visibleToggle" className="text-xs text-gray-400 cursor-pointer hover:text-white transition-colors">
+                        Görünür Mod (Tarayıcıyı Göster)
+                      </label>
+                    </div>
                     <button 
                       onClick={handleInitiateScrape}
                       disabled={isScraping || !keywords}
                       className={`w-full py-3 rounded font-bold transition-all mt-4 border 
                         ${isScraping || !keywords ? 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed' : 'bg-transparent border-neon-blue text-neon-blue hover:bg-[#04D9FF]/10'}`}
                     >
-                      {isScraping ? 'SCRAPING IN PROGRESS...' : 'INITIATE SCRAPE'}
+                      {isScraping ? 'KAZIMA İŞLEMİ DEVAM EDİYOR...' : 'KAZIMAYI BAŞLAT'}
                     </button>
                   </div>
                 </div>
@@ -238,7 +252,7 @@ function App() {
                 {/* Live Monitor */}
                 <div className="w-full md:w-2/3 bg-[#050505] border border-gray-800 rounded-lg p-0 flex flex-col overflow-hidden relative">
                   <div className="bg-[#111] px-4 py-2 border-b border-gray-800 text-xs text-gray-500 flex justify-between items-center">
-                    <span>LIVE TERMINAL</span>
+                    <span>CANLI İŞLEM KAYITLARI (LOG)</span>
                     <span className={isScraping ? "text-neon-blue animate-pulse" : "text-gray-500"}>
                       {isScraping ? 'Receiving...' : 'Idle'}
                     </span>
